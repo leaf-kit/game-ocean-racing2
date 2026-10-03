@@ -1,0 +1,221 @@
+// 언어 설정 (한국어 기본, 영어 선택). 정적 HTML은 data-i18n 속성으로, 동적 문자열은 t()로, 데이터는 applyEnglishData()로 바꾼다.
+import { PORTS, TRIVIA, EVENTS, FIGURES, DISCOVERIES } from './history.js?v=20261003a';
+import { SHIPS, SHIP_CATEGORIES, AI_NAMES } from './ships.js?v=20261003a';
+import { EN_DATA } from './i18n-data.js?v=20261003a';
+
+export const LANG = (() => { try { return localStorage.getItem('hr_lang') || 'ko'; } catch (_) { return 'ko'; } })();
+export function setLang(l) { try { localStorage.setItem('hr_lang', l); } catch (_) { /* 무시 */ } location.reload(); }
+
+const UI = {
+  ko: {
+    // 타이틀
+    'title.sub': 'AGE OF SAIL RACING II', 'title.main': '대항해시대 레이싱 2<small>함대 제독</small>',
+    'title.desc': '엔히크 항해왕자가 남긴 해도에는 여백이 있다. 이순신·정화·드레이크와 함대를 꾸려 그 여백을 채워라. 열 장의 항해가 기다린다.',
+    'title.start': '출항 준비',
+    'hint.w': 'W/↑ 전진', 'hint.s': 'S/↓ 감속', 'hint.ad': 'A/D ←/→ 조타', 'hint.shift': 'SHIFT 연타 급가속 / 꾹 전속 항해', 'hint.mouse': '🖱/👆 누른 채 좌우 조타 · 연타 급가속', 'hint.space': 'SPACE 포격', 'hint.c': 'C 카메라', 'hint.m': 'M 음악', 'hint.esc': 'ESC 나가기',
+    'tip.near': '⚡ 아슬아슬하게 스치면 <b>니어미스</b>', 'tip.draft': '🌀 앞 배 뒤에 붙으면 <b>슬립스트림</b>', 'tip.coin': '🪙 금화·보물로 <b>콤보</b>', 'tip.storm': '⛈ 폭풍 속 파도를 넘어라', 'tip.scroll': '📜 두루마리로 <b>역사 인물</b> 발견', 'tip.orb': '🔮 발견 구슬로 <b>오로라·해류</b> 체험', 'tip.verse': '📖 <b>말씀</b>을 지나며 자연스럽게 외운다', 'tip.jump': '🚀 점프대를 밟으면 <b>하늘을 날아</b> 초고속', 'tip.warp': '🌀 <b>블랙홀 관문</b>으로 항로를 건너뛴다', 'tip.loop': '🎢 <b>360도 코스터</b>를 정면으로 들이받아라',
+    'music.label': '♪ 배경음악: ', 'music.checking': '확인 중…', 'music.ext': 'assets/music 폴더의 {n}곡 재생', 'music.synth': '내장 뱃노래 (assets/music/bgm.mp3 를 넣으면 그 곡을 재생)', 'music.synthName': '내장 뱃노래',
+    'lang.label': '언어', 'mobile.rotate': '가로 화면으로 돌려주세요', 'select.map': '맵', 'menu.title': '메뉴', 'menu.mapRestart': '🗺 맵을 바꿔 새로 시작', 'menu.select': '⛵ 함선 선택으로', 'menu.home': '🏠 메인으로', 'music.playlist': '플레이리스트 · 클릭하면 재생', 'music.main': '메인 테마', 'music.now': '재생 중', 'gate.title': '대항해시대 레이싱 2', 'gate.text': '🔊 화면을 클릭하면 메인 테마와 함께 항해가 시작됩니다',
+    // 선택
+    'select.title': '함선을 선택하세요', 'select.laps': '랩 수', 'select.lap1': '1랩', 'select.lap2': '2랩', 'select.lap3': '3랩',
+    'select.diff': '난이도', 'diff.easy': '견습 항해사', 'diff.normal': '일등 항해사', 'diff.hard': '전설의 제독',
+    'select.time': '시간대', 'time.cycle': '낮 → 석양 → 밤', 'time.random': '무작위(고정)', 'time.day': '한낮', 'time.sunset': '석양', 'time.night': '달밤',
+    'select.go': '출항!', 'select.types': '{n}종', 'ship.selected': '✔ 선택됨', 'select.name': '제독 이름', 'select.portrait': '제독 초상', 'select.portraitHint': '초상을 고르면 이름 칸이 비어 있을 때 그 이름이 채워집니다', 'name.placeholder': '이름을 입력하세요', 'hud.admiral': '제독', 'name.default': '이름 없는 제독',
+    'stat.speed': '속도', 'stat.accel': '가속', 'stat.handling': '조타', 'stat.dur': '내구',
+    // HUD
+    'hud.rank': '위', 'hud.wind': '바람 <span id="wind-strength">0</span>노트', 'hud.knots': '노트', 'hud.score': '점수', 'hud.combo': '콤보',
+    'hud.tap': '연타 부스트 · <b>SHIFT 연타</b>', 'hud.boost': '전속 항해 · SHIFT 꾹', 'hud.cannon': '포격 (SPACE)',
+    'hud.trackLock': '🛤 항로 유지 장치 작동', 'hud.offcourse': '⚠ 항로 이탈! 항로로 복귀하세요', 'hud.wrongWay': '⛔ 역방향! 방향을 돌리세요', 'hud.draft': '🌀 슬립스트림', 'hud.storm': '⛈ 폭풍 접근!',
+    'hud.tapHint': '⚡ <b>SHIFT 연타</b> = 급가속 버스트 &nbsp;·&nbsp; <b>SHIFT 꾹</b> = 전속 항해<br><small>🖱 마우스/터치: 누른 채 좌우로 조타 · 빠르게 두드리면 급가속 · 우클릭/두 손가락 = 전속 항해</small>', 'hud.fireBtn': '💣 포격',
+    'hud.me': '나 (선장)', 'hud.tailwind': '순풍 +', 'hud.headwind': '역풍 ',
+    'port.lap': '세계 일주 {lap}회차 · {i}/{n} 기항지',
+    'kc.event': '연대기 · 대항해시대', 'kc.figure': '📜 역사 인물 발견', 'kc.discovery': '🔮 발견 · {kind}', 'kc.guide': '항해 안내', 'kc.guideDate': '세계 일주 {n}회',
+    'kc.guideTitle': '리스본에서 출항합니다', 'kc.guideText': '항해 중 우측에 연대기가 흐릅니다. 📜 두루마리를 밟으면 역사 인물을, 🔮 발견 구슬을 밟으면 오로라·해류 같은 현상을 만납니다. 🔥 주황 화살표 패드는 부스터, 🚀 나무 점프대를 밟으면 하늘을 납니다!',
+    'eff.aurora': '하늘에 오로라가 펼쳐집니다 (25초)', 'eff.elmo': '돛대 끝에 푸른 불꽃이 맺힙니다', 'eff.tradewind': '12초 동안 바람이 내 편이 됩니다', 'eff.current': '10초 동안 해류가 배를 밀어줍니다', 'eff.citrus': '선원이 건강해져 전속 항해 게이지가 가득 찹니다', 'eff.bonus': '15초 동안 획득 점수 2배',
+    // 이벤트 메시지
+    'ev.start': '{label} 항해 · 세계 일주 {laps}회 · {diff}', 'ev.gust': '💨 돌풍! 바람의 방향이 바뀝니다 — 나침반을 확인하세요',
+    'ev.stormWarn': '⛈ 수평선에 먹구름! 폭풍이 다가옵니다', 'ev.stormIn': '🌊 폭풍 돌입! 파도에 배가 밀립니다 — 항로를 지키세요', 'ev.stormOut': '☀ 폭풍이 지나갔습니다',
+    'ev.offcourse': '⚠ 항로를 벗어났습니다! 역류로 속도가 떨어집니다', 'ev.rail': '🪢 가드레일! 항로 안으로 돌아갑니다',
+    'ev.lapTime': '랩 타임 {t}', 'ev.finished': '{name}의 {ship}이(가) 완주했습니다!', 'ev.overtaken': '추월당했습니다! 현재 {r}',
+    'ev.rock': '💥 암초에 부딪혔습니다!', 'ev.island': '💥 섬에 충돌!', 'ev.whirl': '🌀 소용돌이에 휘말렸습니다! 조타로 빠져나가세요', 'ev.whirlOut': '🌊 소용돌이에서 튕겨져 나왔다!',
+    'ev.supply': '🛢 보급품! 부스터 점화 + 게이지 +35%', 'ev.kraken': '🐙 크라켄의 촉수에 붙잡혔다!', 'ev.krakenRise': '🐙 크라켄 출현! 촉수를 피하세요!',
+    'ev.collide': '⚔ {name}의 {ship}과(와) 충돌!', 'ev.hitBy': '💣 {name}의 포격에 맞았다!', 'ev.comboBreak': '콤보 끊김 (×{n})',
+    'ev.music.on': '♪ 음악 켜짐', 'ev.music.off': '♪ 음악 꺼짐', 'ev.earlyStart': '출발이 조금 빨랐습니다 — GO 직전에 W를 누르면 퍼펙트 스타트!',
+    'ev.warp': '🌀 블랙홀 관문! 항로 앞쪽으로 빨려 나왔습니다', 'ev.loop': '🎢 360도 코스터! 한 바퀴 돌고 튀어나갑니다',
+    'ev.newRock': '⚠ 항로에 새 암초가 드러났습니다', 'ev.newWhirl': '🌀 항로에 소용돌이가 생겼습니다!', 'ev.newKraken': '🐙 바다가 술렁입니다… 크라켄 구역이 열렸습니다',
+    // 팝업
+    'pop.near': '아슬아슬!', 'pop.whirlNear': '소용돌이 스침!', 'pop.tentacle': '촉수 회피!', 'pop.storm': '폭풍 돌파!', 'pop.lap': '세계 일주 완료!', 'pop.lead': '선두 탈환!', 'pop.overtake': '추월!',
+    'pop.draft': '슬립스트림!', 'pop.coinCombo': '금화 콤보!', 'pop.chest': '💰 보물 발견!', 'pop.hit': '🎯 명중!', 'pop.plunder': '🏴‍☠️ 약탈 명중!', 'pop.pad': '🔥 부스터!', 'pop.perfect': '퍼펙트 스타트!',
+    'pop.warp': '🌀 블랙홀 통과!', 'pop.loop': '🎢 코스터 진입!', 'pop.loopOut': '🎢 360도 완주!', 'pop.figure': '📜 인물 발견!', 'pop.tapBurst': '⚡ 연타 부스트!', 'pop.tapSub': '급가속!', 'pop.jump': '🚀 점프!', 'pop.land': '착수! 체공 {s}초',
+    'center.final': 'FINAL LAP!', 'center.lap': '세계 일주 {n}회차', 'center.win': '🏆 1위!', 'center.rank': '{r} 완주!', 'center.go': 'GO!',
+    // 결과
+    'res.first': '신대륙 최초 도달!', 'res.honor': '명예로운 항해', 'res.end': '항해 종료', 'res.rank1': '🏆 1위', 'res.rank': '{r}', 'res.score': '점수 {s}',
+    'res.rankPts': '순위 보너스', 'res.maxCombo': '최대 콤보', 'res.near': '니어미스', 'res.overtake': '추월', 'res.draft': '슬립스트림', 'res.tap': '연타 부스트', 'res.coins': '금화', 'res.chests': '보물', 'res.storms': '폭풍 돌파', 'res.jumps': '점프', 'res.loops': '360도 코스터', 'res.perfect': '퍼펙트 스타트', 'res.bestLap': '최고 랩',
+    // ---- v2: 캠페인 · 함대 · 도감 ----
+    'title.campaign': '항해를 시작한다', 'title.campaignGo': '항해를 이어간다', 'title.campaignDone': '다시 항해한다',
+    'title.campaignNew': '제1장 · 리스본, 새벽 항구', 'title.campaignAll': '{n}장 모두 완료 — 언제든 다시',
+    'title.free': '🗺 자유 항해', 'title.codex': '📜 인물 도감',
+    'hint.fleet': '1·2·3 함대 명령',
+    'ui.back': '뒤로', 'ui.fame': '명성',
+    'chapter.title': '항해일지', 'chapter.locked': '앞 장을 마치면 열립니다',
+    'fleet.title': '출항 준비', 'fleet.freeTitle': '자유 항해',
+    'fleet.admiral': '① 기함 제독', 'fleet.admiralHint': '당신의 초상. 아래 목록에서 👑을 누르면 바뀐다.',
+    'fleet.officers': '② 부제독', 'fleet.officersHint': '카드를 누르면 부제독으로 배치되고, 👑을 누르면 기함 제독이 된다. 저마다 함대 전체에 특성을 더한다. 부제독 자리는 명성에 따라 최대 5명까지 열린다.',
+    'fleet.formation': '④ 진형', 'fleet.ship': '⑤ 기함', 'fleet.roster': '③ 인물', 'fleet.spacing': '간격', 'fleet.plusPlain': ' + 무명 {n}척',
+    'fleet.remove': '자리에서 내린다', 'fleet.makeAdmiral': '기함 제독으로 삼는다',
+    'fleet.goal': '목표', 'fleet.sgoal': 'S 등급', 'fleet.tip': '조언', 'fleet.laps': '{n}랩',
+    'fleet.empty': '비어 있음', 'fleet.noSlot': '이 장에서는 쓸 수 없음', 'fleet.needConsort': '동료함을 늘리면 열림', 'fleet.needFame': '명성을 모으면 열림', 'fleet.isMe': '기함', 'fleet.full': '부제독 자리가 가득 찼습니다',
+    'fleet.cohesion': '진형 {p}%', 'fleet.consortN': '동료함 {n}호',
+    'fleet.surge': '⚑ 함대 항진!', 'fleet.rejoined': '⚑ {name}이(가) 대열에 합류했습니다',
+    'fleet.sunk': '💥 {name} 대파!', 'fleet.sunkMsg': '{name}이(가) {why} 대파되었습니다',
+    'fleet.damaged': '{name} 피해 — {why} (내구 {hp}%)',
+    'fleet.hitRock': '암초에 부딪혀', 'fleet.hitIsland': '섬에 부딪혀', 'fleet.hitKraken': '크라켄에 붙잡혀', 'fleet.hitBy': '{name}의 포격으로',
+    'fleet.allyHit': '⚑ {name}이(가) {target}을(를) 명중!', 'fleet.gotSupply': '⚑ {name}이(가) 보급품을 넘겼습니다',
+    'fleet.gotChest': '⚑ {name}의 보물!',
+    'order.charge': '돌격', 'order.screen': '방패', 'order.gather': '산개', 'order.sub': '함대 명령',
+    'mission.sec': '초', 'mission.surviveDone': '버텼다 — 완주하라',
+    'mission.alive': '{n}/{all}척 생존', 'mission.rankNow': '현재 {r} · 목표 {g}위 안',
+    'mission.surviveClear': '⛈ 버텨냈다!', 'mission.nowFinish': '이제 항로를 완주하라', 'mission.survived': '생존 성공!',
+    'mission.failed': '작전 실패', 'mission.failEscort': '지켜야 할 동료함을 잃었습니다', 'mission.failTime': '시간 안에 승부를 내지 못했습니다',
+    'mission.hitsClear': '🎯 목표 명중!', 'mission.goalDone': '목표 달성!',
+    'codex.title': '인물 도감', 'codex.note': '초상은 모두 실제 역사 자료입니다. 출처와 저작권은 화면 아래에 표시됩니다.',
+    'codex.joined': '✔ 함대에 영입 가능', 'codex.needs': '⚜ 캠페인 해금 · 명성 {n}', 'codex.credits': '초상 출처 · 저작권',
+    'cs.skip': '건너뛰기 ⏭',
+    'intro.skip': '건너뛰기', 'intro.sound': '소리 켜기',
+    'menu.restart': '↻ 이 장을 다시', 'menu.fleet': '⚓ 출항 준비로', 'menu.chapters': '📖 항해일지로',
+    'select.consorts': '동료함',
+    'res.chapterClear': '{act} 완료', 'res.chapterFail': '항해 실패', 'res.sgoal': 'S 등급',
+    'res.fameTotal': '누적 {n}', 'res.unlocked': '🎁 새로 열렸습니다',
+    'res.joined': '함대에 합류했습니다', 'res.shipUnlock': '기함으로 고를 수 있습니다', 'res.fameJoin': '명성이 쌓여 합류했습니다',
+    'res.crown': '바다의 왕관', 'res.crownSub': '해도의 여백을 모두 채웠습니다',
+    'res.freeplay': '자유 항해', 'res.freeplaySub': '아무 맵에서나 함대를 꾸려 달릴 수 있습니다',
+    'res.next': '다음 장으로 ▶', 'res.log': '항해일지', 'res.home': '메인으로', 'res.sunk': '대파',
+    'res.fleetTime': '진형 유지', 'res.orders': '함대 명령', 'res.alive': '동료함 생존',
+    // ---- 말씀 ----
+    'kc.verse': '📖 말씀 · {n}번째', 'kc.verseMemo': '📖 말씀 · 암송',
+    'kc.verseFirst': '처음 만난 말씀', 'kc.verseFill': '빈칸을 떠올려 보라', 'kc.verseRecite': '외워서 읊어 보라',
+    'pop.verse': '📖 말씀!', 'pop.verseMemo': '📖 암송 완료!',
+    'ev.verseMemo': '📖 {ref} 을(를) 외웠습니다',
+    'res.verses': '📖 말씀 — 외운 구절 {m}/{all}', 'res.verseDone': '✔ 암송',
+    'codex.verses': '📖 말씀', 'codex.verseCount': '외움 {m} · 만남 {s} / 전체 {all}',
+    'codex.verseNote': '항해 중 만난 구절입니다. 카드를 누르면 빈칸이 채워집니다. 여섯 번 만나면 암송한 것으로 봅니다.',
+    'codex.verseLocked': '아직 만나지 않은 말씀',
+    'res.learned': '📚 이번 항해에서 배운 역사', 'res.learnedLine': '연대기 {e}건 열람 · 인물 {f}명 · 발견 {d}건', 'res.sailing': '항해 중', 'res.retry': '다시 출항', 'res.select': '함선 변경',
+  },
+  en: {
+    'title.sub': 'AGE OF SAIL RACING II', 'title.main': 'Age of Sail Racing II<small>Admiral\'s Fleet</small>',
+    'title.desc': "Prince Henry's chart has blanks in it. Build a fleet with Yi Sun-sin, Zheng He and Drake, and fill them in. Ten chapters of voyaging await.",
+    'title.start': 'Prepare to Sail',
+    'hint.w': 'W/↑ Forward', 'hint.s': 'S/↓ Slow', 'hint.ad': 'A/D ←/→ Steer', 'hint.shift': 'SHIFT tap = burst / hold = full sail', 'hint.mouse': '🖱/👆 hold & drag to steer · taps = burst', 'hint.space': 'SPACE Fire', 'hint.c': 'C Camera', 'hint.m': 'M Music', 'hint.esc': 'ESC Exit',
+    'tip.near': '⚡ Graze hazards for a <b>Near Miss</b>', 'tip.draft': '🌀 Tuck behind a ship to <b>Slipstream</b>', 'tip.coin': '🪙 Coins & treasure build <b>Combos</b>', 'tip.storm': '⛈ Ride the storm waves', 'tip.scroll': '📜 Scrolls reveal <b>historical figures</b>', 'tip.orb': '🔮 Discovery orbs trigger <b>auroras & currents</b>', 'tip.jump': '🚀 Hit a ramp to <b>fly</b> at top speed', 'tip.warp': '🌀 <b>Wormhole gates</b> skip you down the course', 'tip.loop': '🎢 Charge a <b>360° coaster</b> head-on',
+    'music.label': '♪ Music: ', 'music.checking': 'checking…', 'music.ext': 'playing {n} track(s) from assets/music', 'music.synth': 'built-in shanty (drop assets/music/bgm.mp3 to play your own)', 'music.synthName': 'Built-in shanty',
+    'lang.label': 'Language', 'mobile.rotate': 'Please rotate to landscape', 'select.map': 'Map', 'menu.title': 'Menu', 'menu.mapRestart': '🗺 Restart on another map', 'menu.select': '⛵ Ship select', 'menu.home': '🏠 Main menu', 'music.playlist': 'Playlist · click to play', 'music.main': 'Main theme', 'music.now': 'Now playing', 'gate.title': 'Age of Sail Racing II', 'gate.text': '🔊 Click anywhere to begin with the main theme',
+    'select.title': 'Choose Your Ship', 'select.laps': 'Laps', 'select.lap1': '1 lap', 'select.lap2': '2 laps', 'select.lap3': '3 laps',
+    'select.diff': 'Difficulty', 'diff.easy': 'Apprentice', 'diff.normal': 'First Mate', 'diff.hard': 'Legendary Admiral',
+    'select.time': 'Time of day', 'time.cycle': 'Day → Sunset → Night', 'time.random': 'Random (fixed)', 'time.day': 'Noon', 'time.sunset': 'Sunset', 'time.night': 'Moonlit night',
+    'select.go': 'Set Sail!', 'select.types': '{n} types', 'ship.selected': '✔ Selected', 'select.name': 'Admiral', 'select.portrait': 'Admiral Portrait', 'select.portraitHint': 'Picking a portrait fills the name box if it is empty', 'name.placeholder': 'Enter your name', 'hud.admiral': 'ADMIRAL', 'name.default': 'Nameless Admiral',
+    'stat.speed': 'Speed', 'stat.accel': 'Accel', 'stat.handling': 'Steer', 'stat.dur': 'Hull',
+    'hud.rank': '', 'hud.wind': 'Wind <span id="wind-strength">0</span> kn', 'hud.knots': 'kn', 'hud.score': 'Score', 'hud.combo': 'combo',
+    'hud.tap': 'Tap Boost · <b>tap SHIFT</b>', 'hud.boost': 'Full Sail · hold SHIFT', 'hud.cannon': 'Cannon (SPACE)',
+    'hud.trackLock': '🛤 Track-hold engaged', 'hud.offcourse': '⚠ Off course! Return to the route', 'hud.wrongWay': '⛔ WRONG WAY! Turn around', 'hud.draft': '🌀 Slipstream', 'hud.storm': '⛈ Storm incoming!',
+    'hud.tapHint': '⚡ <b>Tap SHIFT</b> = speed burst &nbsp;·&nbsp; <b>Hold SHIFT</b> = full sail<br><small>🖱 Mouse/touch: hold and drag sideways to steer · rapid taps = burst · right-click / two fingers = full sail</small>', 'hud.fireBtn': '💣 Fire',
+    'hud.me': 'You (Captain)', 'hud.tailwind': 'Tailwind +', 'hud.headwind': 'Headwind ',
+    'port.lap': 'Voyage {lap} · port {i}/{n}',
+    'kc.event': 'Chronicle · Age of Discovery', 'kc.figure': '📜 Historical Figure', 'kc.discovery': '🔮 Discovery · {kind}', 'kc.guide': 'Voyage Guide', 'kc.guideDate': '{n} circumnavigations',
+    'kc.guideTitle': 'Departing Lisbon', 'kc.guideText': 'A chronicle scrolls on the right as you sail. 📜 Scrolls reveal historical figures; 🔮 orbs reveal phenomena like auroras and currents. 🔥 Orange arrow pads are boosters, 🚀 wooden ramps launch you into the sky!',
+    'eff.aurora': 'An aurora unfolds across the sky (25 s)', 'eff.elmo': 'Blue flames dance on the masthead', 'eff.tradewind': 'The wind is at your back for 12 s', 'eff.current': 'A current pushes you along for 10 s', 'eff.citrus': 'The crew recovers: full-sail gauge filled', 'eff.bonus': 'Double points for 15 s',
+    'ev.start': '{label} voyage · {laps} laps around the world · {diff}', 'ev.gust': '💨 Gust! The wind is shifting — check the compass',
+    'ev.stormWarn': '⛈ Dark clouds on the horizon! A storm is coming', 'ev.stormIn': '🌊 Into the storm! Waves push the ship — hold your course', 'ev.stormOut': '☀ The storm has passed',
+    'ev.offcourse': '⚠ Off course! Countercurrents slow you down', 'ev.rail': '🪢 Guard rope! Back onto the route',
+    'ev.lapTime': 'Lap time {t}', 'ev.finished': "{name}'s {ship} has finished!", 'ev.overtaken': 'Overtaken! Now {r}',
+    'ev.rock': '💥 Struck a reef!', 'ev.island': '💥 Ran into an island!', 'ev.whirl': '🌀 Caught in a whirlpool! Steer out', 'ev.whirlOut': '🌊 Flung out of the whirlpool!',
+    'ev.supply': '🛢 Supplies! Booster lit + gauge +35%', 'ev.kraken': '🐙 Seized by the kraken!', 'ev.krakenRise': '🐙 Kraken rising! Dodge the tentacles!',
+    'ev.collide': "⚔ Collided with {name}'s {ship}!", 'ev.hitBy': "💣 Hit by {name}'s cannon!", 'ev.comboBreak': 'Combo lost (×{n})',
+    'ev.music.on': '♪ Music on', 'ev.music.off': '♪ Music off', 'ev.earlyStart': 'A bit early — press W right before GO for a perfect start!',
+    'ev.warp': '🌀 Wormhole gate! You were flung far down the course', 'ev.loop': '🎢 360° coaster! Hold on for a full turn',
+    'ev.newRock': '⚠ A new reef has surfaced on the route', 'ev.newWhirl': '🌀 A whirlpool has formed on the route!', 'ev.newKraken': '🐙 The sea stirs… the kraken zone is open',
+    'pop.near': 'Near Miss!', 'pop.whirlNear': 'Whirlpool graze!', 'pop.tentacle': 'Tentacle dodge!', 'pop.storm': 'Storm survived!', 'pop.lap': 'Circumnavigation!', 'pop.lead': 'Lead retaken!', 'pop.overtake': 'Overtake!',
+    'pop.draft': 'Slipstream!', 'pop.coinCombo': 'Coin combo!', 'pop.chest': '💰 Treasure!', 'pop.hit': '🎯 Direct hit!', 'pop.plunder': '🏴‍☠️ Plunder hit!', 'pop.pad': '🔥 Booster!', 'pop.perfect': 'Perfect start!',
+    'pop.warp': '🌀 Wormhole!', 'pop.loop': '🎢 Into the loop!', 'pop.loopOut': '🎢 Full 360!', 'pop.figure': '📜 Figure found!', 'pop.tapBurst': '⚡ Tap Boost!', 'pop.tapSub': 'Burst!', 'pop.jump': '🚀 Jump!', 'pop.land': 'Splashdown! {s}s airborne',
+    'center.final': 'FINAL LAP!', 'center.lap': 'Voyage {n}', 'center.win': '🏆 1st!', 'center.rank': 'Finished {r}!', 'center.go': 'GO!',
+    'res.first': 'First to the New World!', 'res.honor': 'An Honorable Voyage', 'res.end': 'Voyage Over', 'res.rank1': '🏆 1st', 'res.rank': '{r}', 'res.score': 'Score {s}',
+    'res.rankPts': 'Rank bonus', 'res.maxCombo': 'Max combo', 'res.near': 'Near misses', 'res.overtake': 'Overtakes', 'res.draft': 'Slipstreams', 'res.tap': 'Tap boosts', 'res.coins': 'Coins', 'res.chests': 'Treasure', 'res.storms': 'Storms survived', 'res.jumps': 'Jumps', 'res.loops': '360° loops', 'res.perfect': 'Perfect start', 'res.bestLap': 'Best lap',
+    'title.campaign': 'Begin the Voyage', 'title.campaignGo': 'Continue the Voyage', 'title.campaignDone': 'Sail Again',
+    'title.campaignNew': 'Chapter 1 · Lisbon, Dawn Harbour', 'title.campaignAll': 'All {n} chapters cleared — replay anytime',
+    'title.free': '🗺 Free Sail', 'title.codex': '📜 Codex',
+    'hint.fleet': '1·2·3 Fleet orders',
+    'ui.back': 'Back', 'ui.fame': 'Fame',
+    'chapter.title': "Captain's Log", 'chapter.locked': 'Clear the previous chapter to unlock',
+    'fleet.title': 'Prepare to Sail', 'fleet.freeTitle': 'Free Sail',
+    'fleet.admiral': '① Flagship Admiral', 'fleet.admiralHint': 'Your portrait. Press 👑 in the roster to change it.',
+    'fleet.officers': '② Sub-Admirals', 'fleet.officersHint': 'Click a card to assign a sub-admiral, or 👑 to make them your flagship admiral. Each adds a trait to the whole fleet. Up to 5 slots open as your fame grows.',
+    'fleet.formation': '④ Formation', 'fleet.ship': '⑤ Flagship', 'fleet.roster': '③ Roster', 'fleet.spacing': 'Spacing', 'fleet.plusPlain': ' + {n} unnamed',
+    'fleet.remove': 'Remove from the slot', 'fleet.makeAdmiral': 'Make flagship admiral',
+    'fleet.goal': 'Goal', 'fleet.sgoal': 'S Rank', 'fleet.tip': 'Tip', 'fleet.laps': '{n} lap(s)',
+    'fleet.empty': 'Empty', 'fleet.noSlot': 'Not available this chapter', 'fleet.needConsort': 'Add more consorts to open', 'fleet.needFame': 'Opens as your fame grows', 'fleet.isMe': 'Flagship', 'fleet.full': 'All sub-admiral slots are full',
+    'fleet.cohesion': 'Formation {p}%', 'fleet.consortN': 'Consort {n}',
+    'fleet.surge': '⚑ Fleet Surge!', 'fleet.rejoined': '⚑ {name} rejoined the formation',
+    'fleet.sunk': '💥 {name} wrecked!', 'fleet.sunkMsg': '{name} was wrecked {why}',
+    'fleet.damaged': '{name} damaged — {why} (hull {hp}%)',
+    'fleet.hitRock': 'on a reef', 'fleet.hitIsland': 'on an island', 'fleet.hitKraken': 'by the kraken', 'fleet.hitBy': "by {name}'s cannon",
+    'fleet.allyHit': '⚑ {name} hit {target}!', 'fleet.gotSupply': '⚑ {name} passed you supplies',
+    'fleet.gotChest': "⚑ {name}'s treasure!",
+    'order.charge': 'Charge', 'order.screen': 'Screen', 'order.gather': 'Scatter', 'order.sub': 'Fleet order',
+    'mission.sec': 's', 'mission.surviveDone': 'Survived — now finish',
+    'mission.alive': '{n}/{all} afloat', 'mission.rankNow': 'Now {r} · need top {g}',
+    'mission.surviveClear': '⛈ You held on!', 'mission.nowFinish': 'Now finish the course', 'mission.survived': 'Survived!',
+    'mission.failed': 'Mission failed', 'mission.failEscort': 'You lost the consorts you had to protect', 'mission.failTime': 'You ran out of time',
+    'mission.hitsClear': '🎯 Target met!', 'mission.goalDone': 'Objective complete!',
+    'codex.title': 'Codex', 'codex.note': 'All portraits are real historical sources. Attribution and licences are listed below.',
+    'codex.joined': '✔ Available to recruit', 'codex.needs': '⚜ Campaign unlock · {n} fame', 'codex.credits': 'Portrait sources · licences',
+    'cs.skip': 'Skip ⏭',
+    'intro.skip': 'Skip', 'intro.sound': 'Turn on sound',
+    'menu.restart': '↻ Restart chapter', 'menu.fleet': '⚓ Fleet setup', 'menu.chapters': "📖 Captain's Log",
+    'select.consorts': 'Consorts',
+    'res.chapterClear': '{act} Cleared', 'res.chapterFail': 'Voyage Failed', 'res.sgoal': 'S rank',
+    'res.fameTotal': 'total {n}', 'res.unlocked': '🎁 Newly unlocked',
+    'res.joined': 'joined your fleet', 'res.shipUnlock': 'available as a flagship', 'res.fameJoin': 'joined as your fame grew',
+    'res.crown': 'Crown of the Sea', 'res.crownSub': 'Every blank on the chart is filled',
+    'res.freeplay': 'Free Sail', 'res.freeplaySub': 'Race your fleet on any map',
+    'res.next': 'Next Chapter ▶', 'res.log': "Captain's Log", 'res.home': 'Main menu', 'res.sunk': 'wrecked',
+    'res.fleetTime': 'In formation', 'res.orders': 'Fleet orders', 'res.alive': 'Consorts afloat',
+    'kc.verse': '📖 Scripture · time {n}', 'kc.verseMemo': '📖 Scripture · recite',
+    'kc.verseFirst': 'A verse you meet for the first time', 'kc.verseFill': 'Fill in the blanks', 'kc.verseRecite': 'Say it from memory',
+    'pop.verse': '📖 Scripture!', 'pop.verseMemo': '📖 Memorized!',
+    'ev.verseMemo': '📖 You have memorized {ref}',
+    'res.verses': '📖 Scripture — memorized {m}/{all}', 'res.verseDone': '✔ memorized',
+    'codex.verses': '📖 Scripture', 'codex.verseCount': 'memorized {m} · met {s} / {all}',
+    'codex.verseNote': 'Verses you met while sailing. Click a card to fill in the blanks. Six encounters counts as memorized.',
+    'codex.verseLocked': 'Not met yet',
+    'res.learned': '📚 History learned on this voyage', 'res.learnedLine': '{e} chronicle entries · {f} figures · {d} discoveries', 'res.sailing': 'still sailing', 'res.retry': 'Sail Again', 'res.select': 'Change Ship',
+  },
+};
+
+export function t(key, vars) {
+  let s = (UI[LANG] && UI[LANG][key]) ?? UI.ko[key] ?? key;
+  if (vars) for (const k of Object.keys(vars)) s = s.split('{' + k + '}').join(String(vars[k]));
+  return s;
+}
+export const ordinal = (n) => LANG === 'en' ? (n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : Math.min(n % 10, 4) % 4] || 'th')) : n + '위';
+
+// index.html의 data-i18n 요소를 현재 언어로 바꾼다
+export function applyStaticI18n() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach((el) => { const k = el.dataset.i18n; if (UI[LANG][k] != null) el.innerHTML = UI[LANG][k]; });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { const k = el.dataset.i18nPlaceholder; if (UI[LANG][k] != null) el.placeholder = UI[LANG][k]; });
+  const sel = document.getElementById('lang-select'); if (sel) sel.value = LANG;
+}
+
+// 영어 선택 시 데이터 객체를 영어 내용으로 덮어쓴다 (필드 이름은 그대로 유지)
+export function applyEnglishData() {
+  if (LANG !== 'en') return;
+  const D = EN_DATA;
+  PORTS.forEach((p, i) => Object.assign(p, D.ports[i]));
+  EVENTS.forEach((e, i) => Object.assign(e, D.events[i]));
+  FIGURES.forEach((f, i) => Object.assign(f, D.figures[i]));
+  DISCOVERIES.forEach((d, i) => Object.assign(d, D.discoveries[i]));
+  TRIVIA.splice(0, TRIVIA.length, ...D.trivia);
+  for (const s of SHIPS) if (D.ships[s.id]) Object.assign(s, D.ships[s.id]);
+  Object.assign(SHIP_CATEGORIES.sail, D.categories.sail); Object.assign(SHIP_CATEGORIES.galley, D.categories.galley); Object.assign(SHIP_CATEGORIES.special, D.categories.special);
+  AI_NAMES.splice(0, AI_NAMES.length, 'Bartolomeu', 'Magellan', 'Zheng He', 'Drake', 'Yi Sun-sin', 'Columbus', 'Da Gama', 'Prince Henry', 'Albuquerque', 'Cabot', 'Vespucci', 'Hayreddin');
+}

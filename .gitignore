@@ -1,0 +1,9 @@
+.DS_Store
+
+# 원본 마스터는 로컬에만 둔다. 저장소에는 웹용 변환본만 올린다.
+#  - assets/mov/*.mov   → assets/mov/ocean-racing-2.mp4 (H.264/AAC)
+#  - assets/intro.png   → assets/intro.jpg (README 히어로 이미지)
+#  - assets/logo.png    → 아직 어디에서도 쓰지 않음
+assets/mov/*.mov
+assets/intro.png
+assets/logo.png

@@ -78,6 +78,11 @@ const UI = {
     'mission.surviveClear': '⛈ 버텨냈다!', 'mission.nowFinish': '이제 항로를 완주하라', 'mission.survived': '생존 성공!',
     'mission.failed': '작전 실패', 'mission.failEscort': '지켜야 할 동료함을 잃었습니다', 'mission.failTime': '시간 안에 승부를 내지 못했습니다',
     // 부캉이의 바다
+    'ship.tipStats': '속도 {sp} · 가속 {ac} · 조타 {ha} · 내구 {du}',
+    'ship.tipFlagOnly': '기함 전용 — 동료함과 라이벌은 타지 않는다',
+    'ship.tipAnyone': '기함 · 동료함 · 라이벌 모두 타는 배',
+    'ship.tipChosen': '✔ 지금 고른 기함',
+    'ship.tipMapOnly': '🌊 부캉이의 바다에서만 탈 수 있다',
     'hud.breath': '숨 · <b>X 잠수</b>', 'hud.breach': '브리치 (SPACE)', 'hud.breachBtn': '🐬 도약', 'pop.breach': '🐬 브리치!',
     'kc.animal': '🐟 해양 생물', 'ev.whale': '🐋 먼 바다로 거대한 그림자가 지나갑니다…', 'ev.jelly': '🪼 해파리에 쏘였습니다! 키가 늦게 먹습니다',
     'ev.turtleBump': '🐢 거북을 건드렸습니다. 미안합니다', 'ev.highTide': '🌊 만조입니다. 길을 비워 주세요',
@@ -177,6 +182,11 @@ const UI = {
     'mission.surviveClear': '⛈ You held on!', 'mission.nowFinish': 'Now finish the course', 'mission.survived': 'Survived!',
     'mission.failed': 'Mission failed', 'mission.failEscort': 'You lost the consorts you had to protect', 'mission.failTime': 'You ran out of time',
     // Bukhang Waterway
+    'ship.tipStats': 'Speed {sp} · Accel {ac} · Handling {ha} · Hull {du}',
+    'ship.tipFlagOnly': 'Flagship only — consorts and rivals never sail it',
+    'ship.tipAnyone': 'Sailed by flagship, consorts and rivals alike',
+    'ship.tipChosen': '✔ Your current flagship',
+    'ship.tipMapOnly': '🌊 Only on the Bukhang Waterway',
     'hud.breath': 'Breath · <b>X dive</b>', 'hud.breach': 'Breach (SPACE)', 'hud.breachBtn': '🐬 Breach', 'pop.breach': '🐬 Breach!',
     'kc.animal': '🐟 Marine life', 'ev.whale': '🐋 A vast shadow passes far offshore…', 'ev.jelly': '🪼 Stung! Your helm answers slowly',
     'ev.turtleBump': '🐢 You bumped a turtle. Sorry', 'ev.highTide': '🌊 High tide. Clear the way',

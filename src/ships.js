@@ -562,6 +562,8 @@ function buildModern(def, g, L, W, H) {
 // 바깥(main.js, boat.js)이 기대하는 userData 모양은 그대로 맞춘다.
 function buildSharkMesh(def, opts = {}) {
   const g = new THREE.Group();
+  const swim = new THREE.Group();   // 헤엄치는 몸. 깃발과 등불은 여기 넣지 않는다.
+  g.add(swim);
   const L = def.length;
   const skin = new THREE.MeshStandardMaterial({ color: def.hullColor, roughness: 0.6, metalness: 0.05 });
   const belly = new THREE.MeshStandardMaterial({ color: def.sailColor, roughness: 0.7 });
@@ -578,17 +580,17 @@ function buildSharkMesh(def, opts = {}) {
   }
   body.computeVertexNormals();
   const hull = new THREE.Mesh(body, skin);
-  g.add(hull);
+  swim.add(hull);
 
   // 흰 배
   const bl = new THREE.SphereGeometry(1, 12, 7, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45);
   bl.scale(L * 0.46, L * 0.15, L * 0.13);
-  const blm = new THREE.Mesh(bl, belly); blm.position.y = -0.12; g.add(blm);
+  const blm = new THREE.Mesh(bl, belly); blm.position.y = -0.12; swim.add(blm);
 
   // 주둥이
   const snout = new THREE.ConeGeometry(L * 0.11, L * 0.2, 8);
   snout.rotateZ(-Math.PI / 2); snout.translate(L * 0.56, -0.1, 0);
-  g.add(new THREE.Mesh(snout, skin));
+  swim.add(new THREE.Mesh(snout, skin));
 
   // 등지느러미 — 수면을 가르는 그 지느러미
   const shape = new THREE.Shape();
@@ -596,23 +598,34 @@ function buildSharkMesh(def, opts = {}) {
   const dorsal = new THREE.ExtrudeGeometry(shape, { depth: L * 0.03, bevelEnabled: false });
   dorsal.translate(L * 0.06, L * 0.12, -L * 0.015);
   const fin = new THREE.Mesh(dorsal, skin);
-  g.add(fin);
+  swim.add(fin);
 
-  // 가슴지느러미 둘
+  // 가슴지느러미 둘. 날개처럼 아주 조금 움직인다.
+  const pecs = [];
   for (const sd of [-1, 1]) {
     const pec = new THREE.ConeGeometry(L * 0.07, L * 0.3, 3);
     pec.rotateX(Math.PI / 2 * sd); pec.rotateZ(sd * -0.35); pec.scale(1, 1, 0.22);
-    pec.translate(L * 0.14, -L * 0.07, sd * L * 0.17);
-    g.add(new THREE.Mesh(pec, skin));
+    pec.translate(0, 0, sd * L * 0.04);
+    const mesh = new THREE.Mesh(pec, skin);
+    mesh.position.set(L * 0.14, -L * 0.07, sd * L * 0.13);
+    mesh.userData.side = sd;
+    swim.add(mesh); pecs.push(mesh);
   }
 
-  // 꼬리: 따로 묶어서 좌우로 흔든다 (boat.js 가 sails 대신 이걸 움직인다)
+  // 꼬리: 두 마디다. 꼬리자루(stem)가 먼저 돌고 꼬리지느러미(fluke)가 한 박자 늦게 따라온다.
+  // 한 덩어리로 흔들면 막대기를 젓는 것처럼 보인다.
   const tail = new THREE.Group();
+  tail.position.x = -L * 0.4;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(L * 0.045, L * 0.03, L * 0.17, 6), skin);
+  stem.rotation.z = Math.PI / 2; stem.position.x = -L * 0.085;
+  tail.add(stem);
+  const fluke = new THREE.Group();
+  fluke.position.x = -L * 0.17;
   const up = new THREE.ConeGeometry(L * 0.08, L * 0.34, 3); up.rotateZ(-0.5); up.scale(1, 1, 0.3); up.translate(-L * 0.07, L * 0.13, 0);
   const dn = new THREE.ConeGeometry(L * 0.06, L * 0.2, 3); dn.rotateZ(Math.PI + 0.4); dn.scale(1, 1, 0.3); dn.translate(-L * 0.05, -L * 0.09, 0);
-  tail.add(new THREE.Mesh(up, skin), new THREE.Mesh(dn, skin));
-  tail.position.x = -L * 0.48;
-  g.add(tail);
+  fluke.add(new THREE.Mesh(up, skin), new THREE.Mesh(dn, skin));
+  tail.add(fluke);
+  swim.add(tail);
 
   // 등지느러미 끝의 작은 깃발. 제독 색이 보여야 다른 배와 구분된다.
   const flagMat = new THREE.MeshStandardMaterial({ color: opts.flagColor ?? 0xffe08a, side: THREE.DoubleSide, roughness: 0.7 });
@@ -630,9 +643,11 @@ function buildSharkMesh(def, opts = {}) {
   g.add(fire);
 
   const outer = new THREE.Group();
+  // 다른 배와 같은 규칙: +x 로 만들고 -90도 돌려 뱃머리가 +z(전진 방향)를 보게 한다.
+  g.rotation.y = -Math.PI / 2;
   g.scale.setScalar(SHIP_SCALE);
   outer.add(g);
-  outer.userData = { sails: [], flag, lantern, fire, hull, length: L, inner: g, tail };
+  outer.userData = { sails: [], flag, lantern, fire, hull, length: L, inner: g, swim, tail, fluke, pecs };
   return outer;
 }
 
@@ -952,6 +967,16 @@ function getPreviewShared() {
       if (!e.target.isConnected) continue;
       e.t += 0.012 * (E.length / per);
       e.ship.rotation.y = e.t; e.ship.position.y = Math.sin(e.t * 3) * 0.2; e.ship.rotation.z = Math.sin(e.t * 2) * 0.05;
+      // 부캉이: 미리보기에서도 꼬리를 젓는다. 멈춰 있으면 박제로 보인다.
+      const ud = e.ship.userData;
+      if (ud.swim) {
+        const ph = e.t * 9;
+        ud.swim.rotation.y = Math.sin(ph) * 0.09;
+        ud.tail.rotation.y = Math.sin(ph - 0.7) * 0.32;
+        ud.fluke.rotation.y = Math.sin(ph - 1.5) * 0.26;
+        ud.swim.rotation.z = Math.cos(ph) * 0.04;
+        for (const f of ud.pecs) f.rotation.x = Math.sin(ph - 1.0) * 0.1;
+      }
       renderer.render(e.scene, e.cam);
       e.ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
       e.ctx.drawImage(canvas, 0, 0);

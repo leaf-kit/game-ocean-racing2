@@ -26,6 +26,8 @@ applyStaticI18n();
 document.getElementById('lang-select').addEventListener('change', (e) => setLang(e.target.value));
 
 const $ = (id) => document.getElementById(id);
+// 속성값에 그대로 넣을 수 있게 따옴표와 꺾쇠를 막는다
+function esc(v) { return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 const AI_COLORS = ['#ff6b6b', '#6bcBff', '#7bed9f', '#f8a5ff', '#ffa94d', '#c3b1ff'];
 
 // ---------- 렌더러/씬 ----------
@@ -650,6 +652,22 @@ function showShipPreview(def) {
     `<b>${def.name}</b><span>${def.en} · ${def.nation}</span>`;
 }
 
+// 칩에 마우스를 올렸을 때 뜨는 설명.
+// 어떤 배인지(함종과 분류), 누가 타는 배인지(소속), 이름을 한 번에 보여 준다.
+function shipTip(d) {
+  const s = d.stats;
+  const cat = (SHIP_CATEGORIES[d.cat]?.name || d.cat).replace(/\s*\(.*\)$/, '');
+  const lines = [
+    `${d.name} (${d.en})`,
+    `${cat} · ${d.nation}`,
+    t('ship.tipStats', { sp: s.speed * 10, ac: s.accel * 10, ha: s.handling * 10, du: s.durability * 10 }),
+    d.aiExclude ? t('ship.tipFlagOnly') : t('ship.tipAnyone'),
+  ];
+  if (d === G.selectedShip) lines.push(t('ship.tipChosen'));
+  if (d.id === 'bukhang') lines.push(t('ship.tipMapOnly'));
+  return lines.join('\n');
+}
+
 function buildShipStrip(ch) {
   const strip = $('ship-strip');
   const list = ch && ch.lockShip ? SHIPS.filter((s) => s.id === ch.ship) : unlockedShips();
@@ -660,7 +678,7 @@ function buildShipStrip(ch) {
   else if (!list.includes(G.selectedShip)) G.selectedShip = list[0];
   strip.innerHTML = list.map((d) => {
     const s = d.stats;
-    return `<button type="button" class="ship-chip${d === G.selectedShip ? ' selected' : ''}${d.legend ? ' legend' : ''}" data-id="${d.id}">
+    return `<button type="button" class="ship-chip${d === G.selectedShip ? ' selected' : ''}${d.legend ? ' legend' : ''}" data-id="${d.id}" title="${esc(shipTip(d))}">
       <b>${d.name}</b><small>${d.nation}</small>
       <span class="chip-stats"><i style="--v:${s.speed * 10}%"></i><i style="--v:${s.accel * 10}%"></i><i style="--v:${s.handling * 10}%"></i><i style="--v:${s.durability * 10}%"></i></span>
     </button>`;
@@ -674,7 +692,12 @@ function buildShipStrip(ch) {
     const d = SHIPS.find((x) => x.id === b.dataset.id);
     b.addEventListener('click', () => {
       G.selectedShip = d; SAVE.ship = d.id; persist();
-      strip.querySelectorAll('.ship-chip').forEach((c) => c.classList.toggle('selected', c === b));
+      strip.querySelectorAll('.ship-chip').forEach((c) => {
+        c.classList.toggle('selected', c === b);
+        // "지금 고른 기함" 줄이 따라 움직이도록 설명을 다시 붙인다
+        const def = SHIPS.find((x) => x.id === c.dataset.id);
+        if (def) c.title = shipTip(def);
+      });
       show(d); audio.pickup();
     });
     b.addEventListener('mouseenter', () => show(d));

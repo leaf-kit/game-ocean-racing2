@@ -220,8 +220,25 @@ export class Boat {
     const ud = this.mesh.userData;
     const fill = THREE.MathUtils.clamp(0.35 + rel * 0.65 * wind.strength + this.speed / P.maxSpeed * 0.3, 0.2, 1.2);
     for (const s of ud.sails) s.scale.z += (fill - s.scale.z) * Math.min(1, 2 * dt);
-    // 부캉이는 돛이 없다. 꼬리를 흔들어 나아간다. 빠를수록 세게.
-    if (ud.tail) ud.tail.rotation.y = Math.sin(t * (4 + Math.abs(this.speed) / P.maxSpeed * 9)) * 0.45;
+    // 부캉이는 돛이 없다. 꼬리를 저어 나아간다.
+    // 몸 → 꼬리자루 → 꼬리지느러미 순으로 파동이 뒤로 흘러가게 위상을 늦춘다.
+    // 한 덩어리로 흔들면 막대기를 젓는 것처럼 보인다.
+    if (ud.swim) {
+      const sr = Math.abs(this.speed) / P.maxSpeed;
+      const freq = 2.6 + sr * 7;                       // 빠를수록 자주 젓는다
+      const amp = 0.14 + sr * 0.42;                    // 빠를수록 크게 젓는다
+      this.swimPh = (this.swimPh ?? 0) + freq * dt;
+      const ph = this.swimPh;
+      ud.swim.rotation.y = Math.sin(ph) * amp * 0.28;               // 몸통이 살짝 쏠린다
+      ud.tail.rotation.y = Math.sin(ph - 0.7) * amp;                // 꼬리자루가 늦게 따라온다
+      if (ud.fluke) ud.fluke.rotation.y = Math.sin(ph - 1.5) * amp * 0.8; // 꼬리지느러미는 더 늦게
+      ud.swim.rotation.z = Math.cos(ph) * amp * 0.12;               // 젓는 쪽으로 몸이 기운다
+      // 가슴지느러미: 방향을 틀 때 바깥쪽을 세워 균형을 잡는다
+      for (const f of ud.pecs) {
+        const want = -this.steerS * 0.35 * f.userData.side + Math.sin(ph - 1.0) * 0.08;
+        f.rotation.x += (want - f.rotation.x) * Math.min(1, dt * 6);
+      }
+    }
     ud.flag.rotation.y = (wind.dir - this.heading) + Math.PI + Math.sin(t * 8) * 0.15;
     ud.fire.visible = this.boosting || this.turbo > 0;
     if (ud.fire.visible) { ud.fire.scale.set(1 + Math.random() * 0.3, 1 + Math.random() * 0.5, 1 + Math.random() * 0.3); }

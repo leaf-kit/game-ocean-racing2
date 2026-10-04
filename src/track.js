@@ -8,6 +8,11 @@ function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 10139
 
 // 항로 제어점과 스케일은 맵(maps.js)에서 온다
 
+// 한 바퀴 돌려 버리는 장치는 적게 둔다. 자주 나오면 항해의 흐름이 끊긴다.
+// 둘 다 한 랩에 많아야 두 번 만나도록 자리 수를 줄였다.
+export const LOOP_SPOTS = [0.33];          // 360도 코스터
+export const WHIRL_SPOTS = [0.33, 0.72];   // 소용돌이 (맵의 whirl 값이 등장 시점을 정한다)
+
 export const TRACK_HALF_WIDTH = 38;
 export const GUARD_OFFSET = TRACK_HALF_WIDTH + 12; // 가드레일(로프) 위치: 이보다 밖으로는 못 나감
 export const CHECKPOINT_COUNT = 14;
@@ -390,11 +395,13 @@ export class Track {
     }
   }
   // ----- 360도 코스터: 물 위에 세운 나무 고리. 정면으로 들어가면 한 바퀴 돌고 튀어나간다 -----
+  // 한 바퀴 도는 동안 조타가 멈추므로 자주 나오면 항해의 흐름이 끊긴다.
+  // 한 랩에 한 번만 만나도록 한 곳만 둔다.
   _buildLoops() {
     const wood = new THREE.MeshStandardMaterial({ map: woodRampTexture(), roughness: 0.8 });
     const glow = new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
     const post = new THREE.MeshStandardMaterial({ color: 0x3e2a14, roughness: 0.9 });
-    for (const u of [0.33, 0.82]) {
+    for (const u of LOOP_SPOTS) {
       const idx = Math.floor(u * this.sampleCount);
       const p = this.pointAt(idx), t = this.tangentAt(idx), n = this.normalAt(idx);
       const R = 17, W = 15;
@@ -939,8 +946,7 @@ export class Track {
   // ----- 소용돌이 -----
   _buildWhirlpools() {
     const baseTex = makeWhirlTexture();
-    const spots = [0.33, 0.58, 0.79];
-    for (const u of spots) {
+    for (const u of WHIRL_SPOTS) {
       const tex = baseTex.clone(); tex.needsUpdate = true;
       const idx = Math.floor(u * this.sampleCount);
       const p = this.pointAt(idx), n = this.normalAt(idx);

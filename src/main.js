@@ -16,7 +16,7 @@ import { FIGURES, TRAITS, findFigure, portraitSrc, figName } from './figures.js?
 import { Fleet, FORMATION_LIST, findFormation, SPACING_LIST, findSpacing, formationDepth, MAX_CONSORTS, ORDERS, applyOfficerTraits, freshTraits } from './fleet.js?v=20261004a';
 import { CHAPTERS, findChapter, chapterCount, MISSION_TYPES, goalText, meets, gradeOf, GRADE_COLOR } from './campaign.js?v=20261004a';
 import { SAVE, persist, addFame, recordChapter, markSeen, meetVerse, recordBond, grantTitle } from './save.js?v=20261004a';
-import { VERSES, findVerse, stageOf, blankOut, MEMORIZED_AT } from './scripture.js?v=20261004a';
+import { QUOTES as VERSES, findQuote as findVerse, stageOf, blankOut, MEMORIZED_AT } from './quotes.js?v=20261004a';
 import { Cutscene } from './story.js?v=20261004a';
 import { Wildlife, ANIMALS } from './wildlife.js?v=20261004a';
 import { Bukhang, BOND_FULL } from './bukhang.js?v=20261004a';
@@ -386,7 +386,7 @@ function buildVerseCodex() {
       const done = n >= MEMORIZED_AT;
       const { masked, filled } = blankOut(body, done ? 0 : Math.min(3, Math.ceil(n / 2)));
       return `<article class="verse-card${done ? ' done' : ''}" data-full="${filled.replace(/"/g, '&quot;')}">
-        <b>${ref}${done ? ' <span class="vc-done">✔ 암송</span>' : ''}</b>
+        <b>${ref}${done ? ` <span class="vc-done">${t('codex.verseDone')}</span>` : ''}</b>
         <p class="vc-body">${masked}</p>
         <span class="vc-prog"><i style="width:${Math.min(100, (n / MEMORIZED_AT) * 100)}%"></i></span>
       </article>`;

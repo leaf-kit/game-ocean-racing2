@@ -240,28 +240,18 @@ audio.ready.then(() => {
 
 // ---------- 맵 선택 (자유 항해) ----------
 G.map = findMap(SAVE.freeMap);
-// 자유 항해에서 고를 수 있는 맵인가. 부캉이의 바다는 1장을 마쳐야 열린다.
-function mapUnlocked(m) { return m.id !== 'bukhang' || SAVE.chapter >= 1; }
-
+// 자유 항해는 모래상자다. 함선·인물과 마찬가지로 맵도 전부 열려 있다.
 function buildMapOptions() {
   const sel = $('opt-map'); if (sel.options.length) return;
-  for (const m of MAPS) {
-    const o = document.createElement('option'); o.value = m.id;
-    const open = mapUnlocked(m);
-    o.textContent = (LANG === 'en' ? m.en : m.name) + (open ? '' : '  ' + t('map.locked'));
-    o.disabled = !open;
-    sel.appendChild(o);
-  }
-  if (!mapUnlocked(G.map)) { G.map = DEFAULT_MAP; SAVE.freeMap = G.map.id; persist(); }
+  for (const m of MAPS) { const o = document.createElement('option'); o.value = m.id; o.textContent = LANG === 'en' ? m.en : m.name; sel.appendChild(o); }
   sel.value = G.map.id;
   sel.addEventListener('change', () => { G.map = findMap(sel.value); SAVE.freeMap = G.map.id; persist(); });
   const ml = $('menu-maps');
   for (const m of MAPS) {
     const li = document.createElement('li'); li.dataset.id = m.id;
-    li.textContent = (LANG === 'en' ? m.en : m.name) + (mapUnlocked(m) ? '' : '  ' + t('map.locked'));
+    li.textContent = LANG === 'en' ? m.en : m.name;
     li.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!mapUnlocked(m)) { hud.event(t('map.locked'), 2000); return; }
       G.mode = 'free'; G.chapter = null; G.map = m; sel.value = m.id; SAVE.freeMap = m.id; persist();
       $('top-menu-list').classList.add('hidden'); $('result-screen').classList.add('hidden'); startRace();
     });

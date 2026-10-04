@@ -961,3 +961,15 @@ body.cs-on #lang-bar, body.cs-on #music-widget, body.cs-on #top-menu { display: 
 .animal-card b { display: block; color: #cfe9e7; font-size: 14px; }
 .animal-card span { display: block; font-size: 11px; color: #8fb3b0; margin-bottom: 4px; }
 .animal-card p { margin: 0; font-size: 12px; line-height: 1.55; color: #b7c9c7; }
+
+
+/* ---------- 부캉이 함선: 숨 게이지와 잠수 버튼 ---------- */
+#breath-row { margin-top: 2px; }
+#breath-bar { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.14); overflow: hidden; }
+#breath-fill { height: 100%; width: 100%; border-radius: 5px; background: linear-gradient(90deg, #2f7f9f, #8fd4ff); transition: width .1s linear; }
+#breath-row.diving #breath-fill { background: linear-gradient(90deg, #1d5a74, #5fe0d8); }
+#breath-row.low #breath-fill { background: linear-gradient(90deg, #a03a28, #ff8b6b); }
+#breath-row.low #breath-label { color: #ff8b6b; }
+.pad-dive { border-color: #5fe0d8; color: #5fe0d8; }
+.pad-dive.on { background: rgba(95,224,216,0.5); color: #06202a; }
+body.diving .speed-lines { opacity: 0 !important; }

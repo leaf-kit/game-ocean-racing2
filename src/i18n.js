@@ -78,6 +78,7 @@ const UI = {
     'mission.surviveClear': '⛈ 버텨냈다!', 'mission.nowFinish': '이제 항로를 완주하라', 'mission.survived': '생존 성공!',
     'mission.failed': '작전 실패', 'mission.failEscort': '지켜야 할 동료함을 잃었습니다', 'mission.failTime': '시간 안에 승부를 내지 못했습니다',
     // 부캉이의 바다
+    'hud.breath': '숨 · <b>X 잠수</b>', 'hud.breach': '브리치 (SPACE)', 'hud.breachBtn': '🐬 도약', 'pop.breach': '🐬 브리치!',
     'kc.animal': '🐟 해양 생물', 'ev.whale': '🐋 먼 바다로 거대한 그림자가 지나갑니다…', 'ev.jelly': '🪼 해파리에 쏘였습니다! 키가 늦게 먹습니다',
     'ev.turtleBump': '🐢 거북을 건드렸습니다. 미안합니다', 'ev.highTide': '🌊 만조입니다. 길을 비워 주세요',
     'ev.structure': '💥 부두 구조물에 부딪혔습니다!',
@@ -176,6 +177,7 @@ const UI = {
     'mission.surviveClear': '⛈ You held on!', 'mission.nowFinish': 'Now finish the course', 'mission.survived': 'Survived!',
     'mission.failed': 'Mission failed', 'mission.failEscort': 'You lost the consorts you had to protect', 'mission.failTime': 'You ran out of time',
     // Bukhang Waterway
+    'hud.breath': 'Breath · <b>X dive</b>', 'hud.breach': 'Breach (SPACE)', 'hud.breachBtn': '🐬 Breach', 'pop.breach': '🐬 Breach!',
     'kc.animal': '🐟 Marine life', 'ev.whale': '🐋 A vast shadow passes far offshore…', 'ev.jelly': '🪼 Stung! Your helm answers slowly',
     'ev.turtleBump': '🐢 You bumped a turtle. Sorry', 'ev.highTide': '🌊 High tide. Clear the way',
     'ev.structure': '💥 You hit the dock works!',

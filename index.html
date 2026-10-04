@@ -330,8 +330,12 @@
       <div id="tap-bar"><div id="tap-fill"></div></div>
       <div class="gauge-label" data-i18n="hud.boost">전속 항해 · SHIFT 꾹</div>
       <div id="boost-bar"><div id="boost-fill"></div></div>
-      <div class="gauge-label" data-i18n="hud.cannon">포격 (SPACE)</div>
+      <div class="gauge-label" id="cannon-label" data-i18n="hud.cannon">포격 (SPACE)</div>
       <div class="gauge-row"><div id="cannon-bar"><div id="cannon-fill"></div></div><button id="btn-fire" type="button" data-i18n="hud.fireBtn">💣 포격</button></div>
+      <div id="breath-row" class="hidden">
+        <div class="gauge-label" id="breath-label" data-i18n="hud.breath">숨 · <b>X 잠수</b></div>
+        <div id="breath-bar"><div id="breath-fill"></div></div>
+      </div>
     </div>
     <!-- 함대 명령 버튼 -->
     <div id="fleet-orders" class="hidden">
@@ -358,6 +362,7 @@
       <div class="pad-right">
         <button class="pad-btn pad-boost" data-vk="boost" type="button" aria-label="boost">⚡</button>
         <button class="pad-btn pad-fire" data-vk="fire" type="button" aria-label="fire">💣</button>
+        <button class="pad-btn pad-dive hidden" data-vk="dive" type="button" aria-label="dive">🌊</button>
         <div class="pad-col">
           <button class="pad-btn" data-vk="up" type="button" aria-label="forward">▲</button>
           <button class="pad-btn" data-vk="down" type="button" aria-label="slow">▼</button>

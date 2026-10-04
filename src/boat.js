@@ -3,6 +3,11 @@ import * as THREE from 'three';
 import { derivePhysics } from './ships.js?v=20261004a';
 import { waveHeight, waveNormal, SEA } from './ocean.js?v=20261004a';
 
+// 잠수 (부캉이)
+const DIVE_DEPTH = 4.2;      // 수면 아래로 내려가는 깊이
+const DIVE_SECONDS = 7;      // 숨이 다 떨어지기까지
+const BREATH_RECOVER = 5;    // 수면에서 숨을 다 채우기까지
+
 const _n = new THREE.Vector3();
 
 export class Boat {
@@ -44,6 +49,8 @@ export class Boat {
     this.turbo = 0;      // 부스터 패드/아이템의 초고속 남은 시간
     this.rowMul = 1;     // SHIFT 연타 게이지에 따른 가속 배수 (main에서 설정)
     this.airborne = false; this.airY = 0; this.airVy = 0; this.airTime = 0; this.rampCd = 0; // 점프대 비행 상태
+    // 잠수 (부캉이 전용). diveY 는 수면 아래 깊이(음수), breath 는 숨(0~1)
+    this.diving = false; this.diveY = 0; this.breath = 1; this.breachCd = 0;
     // 360도 코스터: 수직 원을 한 바퀴 도는 동안은 물리를 멈추고 정해진 궤도를 탄다
     this.loop = null;
     this.warpCd = 0; // 블랙홀 관문 재진입 대기
@@ -178,9 +185,26 @@ export class Boat {
       const push = SEA.storm * (this.def.turtle ? 9 : 18) * (this.def.stormResist ?? 1) * this.tr.storm;
       this.slide.x += wn.x * push * dt; this.slide.z += wn.z * push * dt;
     }
+    // 잠수: 물속으로 내려간다. 숨이 다하면 저절로 떠오른다.
+    if (this.def.canDive) {
+      if (this.breachCd > 0) this.breachCd -= dt;
+      // 숨이 바닥나면 떠오르고, 어느 정도 차기 전까지는 다시 못 내려간다.
+      // 그래야 X 를 누른 채로 수면에서 깜빡거리지 않는다.
+      if (this.breath <= 0) this.noDive = true;
+      if (this.breath > 0.2) this.noDive = false;
+      const wantDive = this.diving && !this.airborne && !this.noDive && this.breath > 0;
+      this.diveY += ((wantDive ? -DIVE_DEPTH : 0) - this.diveY) * Math.min(1, dt * 3.2);
+      if (wantDive) {
+        this.breath = Math.max(0, this.breath - dt / DIVE_SECONDS);
+        if (this.breath <= 0) this.diving = false;          // 숨이 다하면 올라온다
+      } else {
+        this.breath = Math.min(1, this.breath + dt / BREATH_RECOVER);
+      }
+    }
+    this.submerged = this.diveY < -DIVE_DEPTH * 0.55;        // 이만큼 내려가면 '물속'으로 친다
     this.crest = h;
     const hover = this.def.hover ?? 0; // 위그선: 항상 수면 위를 낮게 비행
-    this.mesh.position.set(this.pos.x, h * (hover ? 0.4 : 0.85) + 0.25 + hover + this.airY, this.pos.z);
+    this.mesh.position.set(this.pos.x, h * (hover ? 0.4 : 0.85) + 0.25 + hover + this.airY + this.diveY, this.pos.z);
     const rock = (0.8 + SEA.storm * 0.9) * (this.def.hover ? 0.3 : 1);
     const targetHeel = -this.steerS * turnEff * 0.26 * (this.speed / P.maxSpeed) + (wn.x * Math.cos(this.heading) * 0.5 - wn.z * Math.sin(this.heading) * 0.5) * rock + effect * 0.3;
     let targetPitch = -(this.speed / P.maxSpeed) * 0.06 + (wn.x * Math.sin(this.heading) + wn.z * Math.cos(this.heading)) * 0.55 * rock;
@@ -196,6 +220,8 @@ export class Boat {
     const ud = this.mesh.userData;
     const fill = THREE.MathUtils.clamp(0.35 + rel * 0.65 * wind.strength + this.speed / P.maxSpeed * 0.3, 0.2, 1.2);
     for (const s of ud.sails) s.scale.z += (fill - s.scale.z) * Math.min(1, 2 * dt);
+    // 부캉이는 돛이 없다. 꼬리를 흔들어 나아간다. 빠를수록 세게.
+    if (ud.tail) ud.tail.rotation.y = Math.sin(t * (4 + Math.abs(this.speed) / P.maxSpeed * 9)) * 0.45;
     ud.flag.rotation.y = (wind.dir - this.heading) + Math.PI + Math.sin(t * 8) * 0.15;
     ud.fire.visible = this.boosting || this.turbo > 0;
     if (ud.fire.visible) { ud.fire.scale.set(1 + Math.random() * 0.3, 1 + Math.random() * 0.5, 1 + Math.random() * 0.3); }
@@ -209,6 +235,20 @@ export class Boat {
     this.airborne = true; this.airTime = 0; this.airY = 0.5; this.airVy = 16 + ratio * 14;
     this.turbo = Math.max(this.turbo, 3.6); this.rampCd = 5;
     this.speed = Math.max(this.speed, P.maxSpeed * 1.4);
+    return true;
+  }
+
+  // 브리치: 부캉이가 제 힘으로 수면 위로 솟아오른다. 점프대가 필요 없다.
+  // 공중에서는 아무것도 부딪히지 않으므로 장애물을 넘는 수단이 된다.
+  breach() {
+    if (!this.def.freeJump || this.airborne || this.breachCd > 0) return false;
+    const P = this.phys;
+    const ratio = Math.max(0.3, Math.abs(this.speed) / P.maxSpeed);
+    this.diving = false; this.diveY = 0;
+    this.airborne = true; this.airTime = 0; this.airY = 0.5; this.airVy = 15 + ratio * 13;
+    this.turbo = Math.max(this.turbo, 1.6);
+    this.speed = Math.max(this.speed, P.maxSpeed * 0.9);
+    this.breachCd = this.def.cannonCooldown ?? 3.5;
     return true;
   }
 

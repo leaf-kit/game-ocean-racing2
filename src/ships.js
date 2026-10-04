@@ -228,6 +228,15 @@ export const SHIPS = [
   },
   // ---------------- 특수선: 거북선 · 대한민국 함대 · 현대 초고속정 ----------------
   {
+    id: 'bukhang', cat: 'special', name: '부캉이', en: 'Bukhang', nation: '부산', legend: true, aiExclude: true,
+    desc: '★ 배가 아니다. 부산 북항 수로에 들어왔던 그 상어를 직접 탄다. 돛도 노도 없이 꼬리로만 나아간다. 바람을 타지 않고, 바람에 밀리지도 않는다.',
+    special: '특성: 상어 — X 잠수(장애물 밑으로 통과), SPACE 브리치(공중으로 도약). 포는 없다',
+    stats: { speed: 13, accel: 9, handling: 10, durability: 7 },
+    windSens: 0, boostRegen: 1.8, cannonCooldown: 3.5, stormResist: 0.35,
+    hullColor: 0x53657a, sailColor: 0xd8dfe6, masts: 0, length: 11, stripe: 0xd8dfe6,
+    shark: true, noCannon: true, canDive: true, freeJump: true,
+  },
+  {
     id: 'turtle', cat: 'special', name: '거북선', en: 'Turtle Ship', nation: '조선', legend: true, aiExclude: true,
     desc: '★ 스페셜 함선. 이순신 장군의 철갑 거북선. 모든 능력치 100 — 속도·가속·조타·내구 어느 하나 빠지지 않는 최강의 함선.',
     special: '특성: 전설의 철갑 — 바람 무시, 충돌 시 무적, 2연발 속사포, 폭풍에도 끄떡없음, 용머리 화염 부스트',
@@ -549,7 +558,86 @@ function buildModern(def, g, L, W, H) {
   }
 }
 
+// 부캉이: 배가 아니라 상어다. 돛도 노도 없으니 선체 만드는 길을 통째로 비껴간다.
+// 바깥(main.js, boat.js)이 기대하는 userData 모양은 그대로 맞춘다.
+function buildSharkMesh(def, opts = {}) {
+  const g = new THREE.Group();
+  const L = def.length;
+  const skin = new THREE.MeshStandardMaterial({ color: def.hullColor, roughness: 0.6, metalness: 0.05 });
+  const belly = new THREE.MeshStandardMaterial({ color: def.sailColor, roughness: 0.7 });
+
+  // 몸통: 구를 늘여 어뢰꼴로 만들고 꼬리 쪽을 좁힌다 (배 기준 +x 가 뱃머리)
+  const body = new THREE.SphereGeometry(1, 14, 10);
+  const pa = body.attributes.position;
+  for (let i = 0; i < pa.count; i++) {
+    const x = pa.getX(i);
+    const squeeze = x < 0 ? 1 - Math.abs(x) * 0.55 : 1 - x * 0.22;
+    pa.setX(i, x * L * 0.5);
+    pa.setY(i, pa.getY(i) * squeeze * L * 0.17);
+    pa.setZ(i, pa.getZ(i) * squeeze * L * 0.15);
+  }
+  body.computeVertexNormals();
+  const hull = new THREE.Mesh(body, skin);
+  g.add(hull);
+
+  // 흰 배
+  const bl = new THREE.SphereGeometry(1, 12, 7, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45);
+  bl.scale(L * 0.46, L * 0.15, L * 0.13);
+  const blm = new THREE.Mesh(bl, belly); blm.position.y = -0.12; g.add(blm);
+
+  // 주둥이
+  const snout = new THREE.ConeGeometry(L * 0.11, L * 0.2, 8);
+  snout.rotateZ(-Math.PI / 2); snout.translate(L * 0.56, -0.1, 0);
+  g.add(new THREE.Mesh(snout, skin));
+
+  // 등지느러미 — 수면을 가르는 그 지느러미
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0); shape.lineTo(-L * 0.17, 0); shape.lineTo(-L * 0.04, L * 0.26); shape.lineTo(L * 0.06, L * 0.02);
+  const dorsal = new THREE.ExtrudeGeometry(shape, { depth: L * 0.03, bevelEnabled: false });
+  dorsal.translate(L * 0.06, L * 0.12, -L * 0.015);
+  const fin = new THREE.Mesh(dorsal, skin);
+  g.add(fin);
+
+  // 가슴지느러미 둘
+  for (const sd of [-1, 1]) {
+    const pec = new THREE.ConeGeometry(L * 0.07, L * 0.3, 3);
+    pec.rotateX(Math.PI / 2 * sd); pec.rotateZ(sd * -0.35); pec.scale(1, 1, 0.22);
+    pec.translate(L * 0.14, -L * 0.07, sd * L * 0.17);
+    g.add(new THREE.Mesh(pec, skin));
+  }
+
+  // 꼬리: 따로 묶어서 좌우로 흔든다 (boat.js 가 sails 대신 이걸 움직인다)
+  const tail = new THREE.Group();
+  const up = new THREE.ConeGeometry(L * 0.08, L * 0.34, 3); up.rotateZ(-0.5); up.scale(1, 1, 0.3); up.translate(-L * 0.07, L * 0.13, 0);
+  const dn = new THREE.ConeGeometry(L * 0.06, L * 0.2, 3); dn.rotateZ(Math.PI + 0.4); dn.scale(1, 1, 0.3); dn.translate(-L * 0.05, -L * 0.09, 0);
+  tail.add(new THREE.Mesh(up, skin), new THREE.Mesh(dn, skin));
+  tail.position.x = -L * 0.48;
+  g.add(tail);
+
+  // 등지느러미 끝의 작은 깃발. 제독 색이 보여야 다른 배와 구분된다.
+  const flagMat = new THREE.MeshStandardMaterial({ color: opts.flagColor ?? 0xffe08a, side: THREE.DoubleSide, roughness: 0.7 });
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(L * 0.16, L * 0.1), flagMat);
+  flag.position.set(-L * 0.02, L * 0.42, 0);
+  g.add(flag);
+
+  const lantern = new THREE.PointLight(0xffb85c, 0, 30);
+  lantern.position.set(-L * 0.1, L * 0.3, 0);
+  g.add(lantern);
+
+  // 브리치 때 터지는 물보라 자리
+  const fire = new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.2, 8), new THREE.MeshBasicMaterial({ color: 0x8fd4ff, transparent: true, opacity: 0.8 }));
+  fire.position.set(-L * 0.55, 0, 0); fire.rotation.z = Math.PI / 2; fire.visible = false;
+  g.add(fire);
+
+  const outer = new THREE.Group();
+  g.scale.setScalar(SHIP_SCALE);
+  outer.add(g);
+  outer.userData = { sails: [], flag, lantern, fire, hull, length: L, inner: g, tail };
+  return outer;
+}
+
 export function buildShipMesh(def, opts = {}) {
+  if (def.shark) return buildSharkMesh(def, opts);
   const g = new THREE.Group();
   const L = def.length, W = L * (def.oars ? 0.26 : 0.32), H = L * (def.oars ? 0.11 : 0.16);
   const isModern = !!(def.modern || def.wig);

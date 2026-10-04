@@ -27,6 +27,9 @@ export class HUD {
       mt: $('mission-tracker'), mtIcon: $('mt-icon'), mtGoal: $('mt-goal'), mtFill: $('mt-fill'), mtProg: $('mt-prog'),
       // 교감 / 스트레스 / 만조 (부캉이의 바다)
       bond: $('bond-panel'), bpLabel: $('bp-label'), bpNote: $('bp-note'), bpFill: $('bp-fill'),
+      // 부캉이 함선: 숨 게이지, 브리치 표시, 잠수 버튼
+      breathRow: $('breath-row'), breathFill: $('breath-fill'), breathLabel: $('breath-label'),
+      cannonLabel: $('cannon-label'), fireBtn: $('btn-fire'), padDive: document.querySelector('.pad-dive'),
       tideRow: $('tide-row'), tideFill: $('tide-fill'), tideState: $('tide-state'),
     };
     this.orderBtns = [...document.querySelectorAll('#fleet-orders .order-btn')];
@@ -53,6 +56,28 @@ export class HUD {
     this.clearKnowledge(); this.el.tapHint.classList.add('hidden'); this.el.wrongWay.classList.add('hidden');
     this.el.fleet.classList.add('hidden'); this.el.orders.classList.add('hidden'); this.el.mt.classList.add('hidden');
     if (this.el.bond) this.el.bond.classList.add('hidden');
+    this.setShark(null);
+  }
+
+  // ---- 부캉이 함선 ----
+  // spec = null 이면 평범한 배다. 포격 칸을 원래대로 돌려놓는다.
+  // { breath: 0~1, diving: bool, ready: bool }
+  setShark(spec) {
+    const e = this.el;
+    if (!e.breathRow) return;
+    if (this._sharkOn === !!spec) { if (!spec) return; } else {
+      this._sharkOn = !!spec;
+      e.breathRow.classList.toggle('hidden', !spec);
+      e.padDive?.classList.toggle('hidden', !spec);
+      e.cannonLabel.innerHTML = spec ? t('hud.breach') : t('hud.cannon');
+      e.fireBtn.textContent = spec ? t('hud.breachBtn') : t('hud.fireBtn');
+      document.body.classList.toggle('shark', !!spec);
+    }
+    if (!spec) { document.body.classList.remove('diving'); return; }
+    e.breathFill.style.width = Math.max(0, Math.min(1, spec.breath)) * 100 + '%';
+    e.breathRow.classList.toggle('diving', spec.diving);
+    e.breathRow.classList.toggle('low', spec.breath < 0.25);
+    document.body.classList.toggle('diving', spec.diving);
   }
 
   // ---- 교감 / 스트레스 게이지 + 만조 ----
@@ -261,7 +286,10 @@ export class HUD {
     this.el.windEffect.classList.toggle('bad', pct < -3);
     this.el.boostFill.style.width = (boat.boost * 100) + '%';
     this.el.boostFill.classList.toggle('active', boat.boosting);
-    const cd = Math.max(0, 1 - boat.cannonCd / (boat.cannonMax || boat.phys.cannonCooldown));
+    // 부캉이는 포 대신 브리치 쿨다운이 이 칸에 들어간다
+    const maxCd = boat.def.freeJump ? (boat.def.cannonCooldown ?? 3.5) : (boat.cannonMax || boat.phys.cannonCooldown);
+    const curCd = boat.def.freeJump ? boat.breachCd : boat.cannonCd;
+    const cd = Math.max(0, 1 - curCd / maxCd);
     this.el.cannonFill.style.width = (cd * 100) + '%';
     this.vignette.classList.toggle('on', boat.boosting);
     this.el.off.classList.toggle('hidden', !boat.offCourse);

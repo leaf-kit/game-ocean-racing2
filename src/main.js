@@ -165,11 +165,11 @@ window.addEventListener('blur', () => { G.keys = {}; });
 // 누른 채 좌우로 끌면 조타 + 전진, 빠르게 두드리면 연타 부스트, 우클릭/두 손가락은 전속 항해
 const PTR = { down: false, id: null, steer: 0, boost: false, fingers: new Set(), lastDown: -10 };
 // 가상 패드 (모바일): 버튼을 누르는 동안 해당 키가 눌린 것으로 취급
-const VK = { left: false, right: false, up: false, down: false, boost: false };
+const VK = { left: false, right: false, up: false, down: false, boost: false, dive: false, fire: false };
 for (const btn of document.querySelectorAll('#touch-pad .pad-btn')) {
   const k = btn.dataset.vk;
   const press = (e) => { e.preventDefault(); e.stopPropagation(); btn.classList.add('on'); try { btn.setPointerCapture(e.pointerId); } catch (_) { /* 무시 */ }
-    if (k === 'fire') { if (G.state === 'racing' && G.player && !G.player.finished) fireCannon(G.player); return; }
+    if (k === 'fire') { if (G.state === 'racing' && G.player && !G.player.finished) (G.player.def.freeJump ? doBreach : fireCannon)(G.player); return; }
     VK[k] = true; if (k === 'boost' && G.state === 'racing') onShiftTap(); };
   const release = (e) => { e.preventDefault(); btn.classList.remove('on'); if (k !== 'fire') VK[k] = false; };
   btn.addEventListener('pointerdown', press); btn.addEventListener('pointerup', release); btn.addEventListener('pointercancel', release); btn.addEventListener('lostpointercapture', release);
@@ -203,7 +203,7 @@ const ptrUp = (e) => {
 };
 window.addEventListener('pointerup', ptrUp); window.addEventListener('pointercancel', ptrUp);
 window.addEventListener('contextmenu', (e) => { if (!isUiTarget(e.target)) e.preventDefault(); });
-$('btn-fire').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (G.state === 'racing' && G.player && !G.player.finished) fireCannon(G.player); });
+$('btn-fire').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (G.state === 'racing' && G.player && !G.player.finished) (G.player.def.freeJump ? doBreach : fireCannon)(G.player); });
 
 // ---------- 화면 전환 ----------
 const SCREENS = ['title-screen', 'chapter-screen', 'fleet-screen', 'codex-screen', 'result-screen'];
@@ -245,7 +245,11 @@ function buildMapOptions() {
   const sel = $('opt-map'); if (sel.options.length) return;
   for (const m of MAPS) { const o = document.createElement('option'); o.value = m.id; o.textContent = LANG === 'en' ? m.en : m.name; sel.appendChild(o); }
   sel.value = G.map.id;
-  sel.addEventListener('change', () => { G.map = findMap(sel.value); SAVE.freeMap = G.map.id; persist(); });
+  sel.addEventListener('change', () => {
+    G.map = findMap(sel.value); SAVE.freeMap = G.map.id; persist();
+    // 부캉이 함선은 부캉이의 바다에서만 나온다. 맵이 바뀌면 목록을 다시 만든다.
+    if (!$('fleet-screen').classList.contains('hidden')) buildShipStrip(G.mode === 'campaign' ? G.chapter : null);
+  });
   const ml = $('menu-maps');
   for (const m of MAPS) {
     const li = document.createElement('li'); li.dataset.id = m.id;
@@ -624,14 +628,17 @@ function buildFormationRow() {
 
 // 해금한 함선: 클리어한 장의 보상 + 처음부터 열려 있는 기본 함선
 function unlockedShips() {
+  // 부캉이는 배가 아니라 그 바다에 사는 동물이다. 그 맵에서만 탄다.
+  const mapId = G.mode === 'campaign' ? (G.chapter?.map ?? G.map.id) : G.map.id;
+  const pool = SHIPS.filter((s) => s.id !== 'bukhang' || mapId === 'bukhang');
   // 자유 항해는 모래상자다. 1편처럼 처음부터 모든 함선을 고를 수 있다.
-  if (G.mode !== 'campaign') return SHIPS;
+  if (G.mode !== 'campaign') return pool;
   // 캠페인은 해금이 곧 보상이므로 진행에 따라 열린다. 다만 시작 폭을 1편만큼 넉넉히 잡는다.
   const base = ['balsa', 'tarette', 'dhow', 'caravel_latina', 'caravel_redonda', 'nao', 'sloop',
                 'carrack', 'light_galley', 'galley', 'lareale', 'xebec'];
   const rewards = CHAPTERS.filter((c) => c.id < SAVE.chapter).map((c) => c.reward?.ship).filter(Boolean);
   const set = new Set([...base, ...rewards]);
-  return SHIPS.filter((s) => set.has(s.id) || SAVE.fame >= 2000); // 명성 2000을 넘기면 전 함선 개방
+  return pool.filter((s) => set.has(s.id) || SAVE.fame >= 2000); // 명성 2000을 넘기면 전 함선 개방
 }
 
 // 선택한 기함을 3D로 천천히 돌려 보여 준다. 배를 바꾸면 이전 미리보기는 정리한다.
@@ -753,6 +760,8 @@ function startRace() {
   G.timeOfDay = tod;
   G.cycle = tod === 'cycle'; G.phase = 0;
 
+  // 부캉이를 고른 채 다른 맵으로 가면 탈 것이 없다. 기본 배로 되돌린다.
+  if (!unlockedShips().includes(G.selectedShip)) G.selectedShip = SHIPS[0];
   buildWorld(tod);
   G.attract = false;
   G.eventIdx = Math.floor(Math.random() * 4); G.eventTimer = 7; G.learned = { figures: [], discoveries: [], verses: [], memorized: [], events: 0 };
@@ -1437,7 +1446,8 @@ function handleCollisions(dt) {
     const fast = Math.abs(b.speed) > b.phys.maxSpeed * 0.55;
     // 장애물
     for (const o of tr.obstacles) {
-      if (o.active === false || b.airborne || b.loop) continue;
+      // 공중이거나 물속이면 부딪히지 않는다. 부캉이는 방파제 밑으로 지나간다.
+      if (o.active === false || b.airborne || b.loop || b.submerged) continue;
       const dx = b.pos.x - o.x, dz = b.pos.z - o.z; const d = Math.hypot(dx, dz);
       if (d < o.r + R) {
         const nx = dx / (d || 1), nz = dz / (d || 1);
@@ -1593,7 +1603,8 @@ function handleCollisions(dt) {
       } else if (b.pos.distanceTo(G.player.pos) < 150) audio.splash();
     }
     // 역사 인물 두루마리 / 발견 구슬 (플레이어만)
-    if (b.isPlayer && G.state === 'racing') {
+    // 물속에서는 못 줍는다. 전부 수면 위에 떠 있는 것들이다.
+    if (b.isPlayer && G.state === 'racing' && !b.submerged) {
       for (const sc of tr.scrolls) {
         if (!sc.active) continue;
         if (Math.hypot(sc.x - b.pos.x, sc.z - b.pos.z) < (sc.r + R * 0.5) * pickR) {
@@ -1711,6 +1722,18 @@ function updateSlipstream(dt) {
 // ---------- 포격 ----------
 const ballGeo = new THREE.SphereGeometry(0.7, 8, 8);
 const ballMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.7, roughness: 0.4 });
+// 부캉이의 브리치. 포 대신 쓰는 재주다.
+function doBreach(boat) {
+  if (!boat.breach()) return;
+  const h = waveHeight(boat.pos.x, boat.pos.z, G.t);
+  G.particles.burst(boat.pos.x, h + 1, boat.pos.z, 60, { speed: 11, up: 14, life: 1.1, size: 4.5, color: 0xd8f0ff, grav: -12, spread: 3 });
+  if (boat.isPlayer) {
+    audio.splash(); audio.boost();
+    G.camShake = Math.max(G.camShake, 0.3);
+    if (G.state === 'racing') award(120, t('pop.breach'), '#8fd4ff', null);
+  }
+}
+
 function fireCannon(boat) {
   // 유도 미션에서는 포문을 닫는다. 소리만으로도 부캉이가 놀란다.
   if (G.chapter?.type === 'guide' && G.mode === 'campaign') return;
@@ -1803,8 +1826,9 @@ function updateCamera(dt) {
   else if (G.camMode === 1) { dist = 60; height = 30; lookAhead = 50; targetY = 8; fovT = 66 + (p.boosting ? 8 : 0); }
   else { dist = -p.phys.radius * 0.9; height = 4.2; lookAhead = 90; targetY = 5; fovT = 80 + (p.boosting ? 12 : 0); }
   if (G.state === 'finished' || G.state === 'result') { const a = G.t * 0.4; camPos.set(p.pos.x + Math.sin(a) * 40, 16, p.pos.z + Math.cos(a) * 40); camTarget.set(p.pos.x, h + 3, p.pos.z); camera.position.lerp(camPos, Math.min(1, dt * 2)); camera.lookAt(camTarget); return; }
-  camPos.set(p.pos.x - _f.x * (dist + air * 10), h * 0.5 + height + p.airY * 0.7 + air * 6, p.pos.z - _f.z * (dist + air * 10));
-  camTarget.set(p.pos.x + _f.x * lookAhead, h + targetY + p.airY * 0.8, p.pos.z + _f.z * lookAhead);
+  const dive = p.diveY || 0;   // 잠수하면 카메라도 따라 내려간다
+  camPos.set(p.pos.x - _f.x * (dist + air * 10), h * 0.5 + height + p.airY * 0.7 + air * 6 + dive * 0.7, p.pos.z - _f.z * (dist + air * 10));
+  camTarget.set(p.pos.x + _f.x * lookAhead, h + targetY + p.airY * 0.8 + dive, p.pos.z + _f.z * lookAhead);
   // 느린 숨결 같은 흔들림 (낭만적인 항해 느낌)
   camPos.y += Math.sin(G.t * 0.5) * 0.8; camPos.x += Math.sin(G.t * 0.33) * 0.6;
   // 배 기준 오프셋을 보간: 배가 아무리 빨라도 카메라가 뒤처져 멀어지지 않는다
@@ -2066,7 +2090,7 @@ function updateWildlife(dt) {
   if (mt) { mt.taken = true; foundDiscovery(); }
 
   // 노무라입깃해파리 — 이 맵의 위협. 스치면 감속과 조타 둔화.
-  const jl = W.hitJelly(p.pos.x, p.pos.z);
+  const jl = p.submerged ? null : W.hitJelly(p.pos.x, p.pos.z);
   if (jl && (jl.cd || 0) <= 0) {
     jl.cd = 2.8;
     p.speed *= 0.7;
@@ -2286,7 +2310,11 @@ function step() {
       const wantBoost = !!(k.ShiftLeft || k.ShiftRight || PTR.boost || VK.boost);
       if (wantBoost && !p.boosting && p.boost > 0.08) { p.boosting = true; audio.boost(); }
       if (!wantBoost) p.boosting = false;
-      if (k.Space) fireCannon(p);
+      // 부캉이는 포가 없다. SPACE 가 브리치(도약)이고, X 를 누르고 있으면 잠수한다.
+      if (p.def.freeJump) {
+        if (k.Space || VK.fire) doBreach(p);
+        p.diving = !!(k.KeyX || VK.dive);
+      } else if (k.Space) fireCannon(p);
     } else { p.throttle = 0.4; p.steer = 0; p.boosting = false; }
 
     updateSlipstream(dt);
@@ -2352,6 +2380,7 @@ function step() {
     audio.setSpeed(Math.abs(p.speed) / p.phys.maxSpeed + SEA.storm * 0.4, p.boosting);
     hud.setRace(p.rank, G.boats.length, p.lap + 1, G.laps, p.finished ? p.finishTime : G.raceTime);
     hud.setShip(p, G.wind);
+    hud.setShark(p.def.canDive ? { breath: p.breath, diving: p.submerged, ready: p.breachCd <= 0 } : null);
     hud.setScore(G.score, G.combo, G.comboTimer / COMBO_WINDOW);
     hud.standings(G.boats);
     hud.setFleet(G.fleet);

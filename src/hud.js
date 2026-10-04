@@ -1,10 +1,10 @@
 // HUD 및 미니맵, 점수/콤보, 기항지 카드(세계지도), 폭풍 경고, 스피드 라인
-import { TRACK_HALF_WIDTH } from './track.js?v=20261003a';
-import { WorldMap, WORLD_ROUTE } from './worldmap.js?v=20261003a';
-import { PORTS } from './history.js?v=20261003a';
-import { t, LANG, ordinal } from './i18n.js?v=20261003a';
-import { portraitSrc, findFigure, figName } from './figures.js?v=20261003a';
-import { MISSION_TYPES } from './campaign.js?v=20261003a';
+import { TRACK_HALF_WIDTH } from './track.js?v=20261004a';
+import { WorldMap, WORLD_ROUTE } from './worldmap.js?v=20261004a';
+import { PORTS } from './history.js?v=20261004a';
+import { t, LANG, ordinal } from './i18n.js?v=20261004a';
+import { portraitSrc, findFigure, figName } from './figures.js?v=20261004a';
+import { MISSION_TYPES } from './campaign.js?v=20261004a';
 
 const $ = (id) => document.getElementById(id);
 
@@ -25,6 +25,9 @@ export class HUD {
       fleet: $('fleet-panel'), fpForm: $('fp-form'), fpCoh: $('fp-cohesion'), fpFill: $('fp-fill'), fpBonus: $('fp-bonus'), fpShips: $('fp-ships'),
       orders: $('fleet-orders'),
       mt: $('mission-tracker'), mtIcon: $('mt-icon'), mtGoal: $('mt-goal'), mtFill: $('mt-fill'), mtProg: $('mt-prog'),
+      // 교감 / 스트레스 / 만조 (부캉이의 바다)
+      bond: $('bond-panel'), bpLabel: $('bp-label'), bpNote: $('bp-note'), bpFill: $('bp-fill'),
+      tideRow: $('tide-row'), tideFill: $('tide-fill'), tideState: $('tide-state'),
     };
     this.orderBtns = [...document.querySelectorAll('#fleet-orders .order-btn')];
     this._fpBuilt = 0;
@@ -49,6 +52,29 @@ export class HUD {
     this.hidePort(); this.el.storm.classList.add('hidden');
     this.clearKnowledge(); this.el.tapHint.classList.add('hidden'); this.el.wrongWay.classList.add('hidden');
     this.el.fleet.classList.add('hidden'); this.el.orders.classList.add('hidden'); this.el.mt.classList.add('hidden');
+    if (this.el.bond) this.el.bond.classList.add('hidden');
+  }
+
+  // ---- 교감 / 스트레스 게이지 + 만조 ----
+  // spec = null 이면 감춘다.
+  // { mode: 'bond'|'stress', value: 0~1, note: '', tide: 0~1|null, tideHigh: bool }
+  setBond(spec) {
+    const e = this.el.bond; if (!e) return;
+    e.classList.toggle('hidden', !spec);
+    if (!spec) return;
+    const stress = spec.mode === 'stress';
+    e.classList.toggle('stress', stress);
+    e.classList.toggle('full', !stress && spec.value >= 1);
+    this.el.bpLabel.textContent = stress ? '🦈 스트레스' : '🦈 교감';
+    this.el.bpNote.textContent = spec.note || '';
+    this.el.bpFill.style.width = Math.max(0, Math.min(1, spec.value)) * 100 + '%';
+    const showTide = spec.tide != null;
+    this.el.tideRow.classList.toggle('hidden', !showTide);
+    if (showTide) {
+      this.el.tideRow.classList.toggle('high', !!spec.tideHigh);
+      this.el.tideFill.style.width = Math.max(0, Math.min(1, spec.tide)) * 100 + '%';
+      this.el.tideState.textContent = spec.tideHigh ? '만조' : '간조';
+    }
   }
 
   // ---- 연대기 / 인물 / 발견 카드 ----

@@ -915,3 +915,49 @@ body.cs-on #lang-bar, body.cs-on #music-widget, body.cs-on #top-menu { display: 
 .verse-card.locked p { font-size: 12px; color: #7f745a; }
 .vc-prog { display: block; height: 4px; margin-top: 7px; background: rgba(0,0,0,0.45); border-radius: 2px; overflow: hidden; }
 .vc-prog i { display: block; height: 100%; background: linear-gradient(90deg, #d8b860, #fff3d6); }
+
+
+/* ---------- 부캉이의 바다: 교감 / 스트레스 / 만조 ---------- */
+#bond-panel { margin-top: 8px; width: 230px; background: rgba(6,18,28,0.55); border: 1px solid rgba(95,224,216,0.4); border-radius: 8px; padding: 7px 9px; }
+#bond-panel.stress { border-color: rgba(255,139,107,0.55); }
+.bp-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: #cfe9e7; margin-bottom: 4px; }
+#bp-note { font-size: 11px; color: #9fd8d2; }
+#bond-panel.stress #bp-note { color: #ffb3a0; }
+#bp-bar { height: 9px; border-radius: 5px; background: rgba(255,255,255,0.12); overflow: hidden; }
+#bp-fill { height: 100%; width: 0; border-radius: 5px; background: linear-gradient(90deg, #2f9f98, #5fe0d8); transition: width .12s linear; }
+#bond-panel.stress #bp-fill { background: linear-gradient(90deg, #c04a32, #ff8b6b); }
+#bond-panel.full { border-color: #ffe08a; box-shadow: 0 0 14px rgba(255,224,138,0.45); }
+#bond-panel.full #bp-fill { background: linear-gradient(90deg, #e0a63c, #ffe08a); }
+#tide-row { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 11px; color: #9fd8d2; }
+.tide-cap { font-size: 12px; }
+#tide-bar { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
+#tide-fill { height: 100%; width: 0; background: linear-gradient(90deg, #2d6f9a, #8fd4ff); transition: width .2s linear; }
+#tide-row.high #tide-fill { background: linear-gradient(90deg, #a06a2c, #ffd166); }
+#tide-row.high { color: #ffd166; }
+
+/* 동물 도감 카드 */
+#knowledge-card.animal { border-color: rgba(95,224,216,0.65); }
+#knowledge-card.animal .kc-kind { color: #5fe0d8; }
+#knowledge-card.animal #kc-fill { background: #5fe0d8; }
+
+/* 결과 화면: 이번 항해에서 만난 동물 */
+.met-animals { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.met-animals span { font-size: 13px; padding: 3px 9px; border: 1px solid rgba(95,224,216,0.45); border-radius: 999px; color: #cfe9e7; background: rgba(95,224,216,0.08); }
+.met-animals span.fresh { border-color: #ffe08a; color: #ffe08a; }
+
+@media (max-width: 820px) {
+  #bond-panel { width: 150px; padding: 5px 7px; }
+  .bp-head { font-size: 10px; } #bp-note { font-size: 9px; } #bp-bar { height: 7px; }
+}
+
+/* 동물 도감 */
+#codex-animals { margin-top: 18px; }
+#codex-animals h4 { color: #5fe0d8; font-size: 15px; margin: 0 0 8px; }
+#codex-animals h4 small { color: #8aa; font-weight: 400; margin-left: 6px; }
+.animal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.animal-card { display: flex; gap: 10px; padding: 9px 11px; border: 1px solid rgba(95,224,216,0.3); border-radius: 8px; background: rgba(10,26,34,0.5); }
+.animal-card.locked { opacity: 0.45; border-style: dashed; }
+.an-emoji { font-size: 26px; line-height: 1; flex: 0 0 auto; }
+.animal-card b { display: block; color: #cfe9e7; font-size: 14px; }
+.animal-card span { display: block; font-size: 11px; color: #8fb3b0; margin-bottom: 4px; }
+.animal-card p { margin: 0; font-size: 12px; line-height: 1.55; color: #b7c9c7; }

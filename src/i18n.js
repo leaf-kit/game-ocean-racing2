@@ -1,7 +1,7 @@
 // 언어 설정 (한국어 기본, 영어 선택). 정적 HTML은 data-i18n 속성으로, 동적 문자열은 t()로, 데이터는 applyEnglishData()로 바꾼다.
-import { PORTS, TRIVIA, EVENTS, FIGURES, DISCOVERIES } from './history.js?v=20261003a';
-import { SHIPS, SHIP_CATEGORIES, AI_NAMES } from './ships.js?v=20261003a';
-import { EN_DATA } from './i18n-data.js?v=20261003a';
+import { PORTS, TRIVIA, EVENTS, FIGURES, DISCOVERIES } from './history.js?v=20261004a';
+import { SHIPS, SHIP_CATEGORIES, AI_NAMES } from './ships.js?v=20261004a';
+import { EN_DATA } from './i18n-data.js?v=20261004a';
 
 export const LANG = (() => { try { return localStorage.getItem('hr_lang') || 'ko'; } catch (_) { return 'ko'; } })();
 export function setLang(l) { try { localStorage.setItem('hr_lang', l); } catch (_) { /* 무시 */ } location.reload(); }
@@ -77,6 +77,17 @@ const UI = {
     'mission.alive': '{n}/{all}척 생존', 'mission.rankNow': '현재 {r} · 목표 {g}위 안',
     'mission.surviveClear': '⛈ 버텨냈다!', 'mission.nowFinish': '이제 항로를 완주하라', 'mission.survived': '생존 성공!',
     'mission.failed': '작전 실패', 'mission.failEscort': '지켜야 할 동료함을 잃었습니다', 'mission.failTime': '시간 안에 승부를 내지 못했습니다',
+    // 부캉이의 바다
+    'kc.animal': '🐟 해양 생물', 'ev.whale': '🐋 먼 바다로 거대한 그림자가 지나갑니다…', 'ev.jelly': '🪼 해파리에 쏘였습니다! 키가 늦게 먹습니다',
+    'ev.turtleBump': '🐢 거북을 건드렸습니다. 미안합니다', 'ev.highTide': '🌊 만조입니다. 길을 비워 주세요',
+    'ev.structure': '💥 부두 구조물에 부딪혔습니다!',
+    'pop.dolphinJump': '🐬 함께 날았다!', 'pop.turtlePass': '🐢 조심히 지나갔다', 'pop.companion': '🦈 부캉이 동행!', 'pop.companionSub': '10초 부스트 · 점수 2배',
+    'pop.guided': '🦈 바다로 돌아갔다', 'pop.guidedSub': '겁주지 않고 데려다주었다',
+    'mission.failStress': '부캉이가 너무 놀랐습니다. 천천히, 조용히 가세요',
+    'hud.companionOn': '동행 {n}초', 'hud.bondNear': '곁에서 나란히 달리세요', 'hud.bondFar': '아직 보이지 않습니다',
+    'res.animals': '이번 항해에서 만난 동물', 'res.animalNew': '도감 신규', 'res.titleGot': '칭호를 얻었습니다',
+    'codex.animals': '해양 생물', 'codex.animalLocked': '아직 만나지 못했습니다', 'select.cine': '등장 연출', 'cine.on': '켜기', 'cine.off': '끄기',
+    'map.locked': '🔒 1장을 마치면 열립니다',
     'mission.hitsClear': '🎯 목표 명중!', 'mission.goalDone': '목표 달성!',
     'codex.title': '인물 도감', 'codex.note': '초상은 모두 실제 역사 자료입니다. 출처와 저작권은 화면 아래에 표시됩니다.',
     'codex.joined': '✔ 함대에 영입 가능', 'codex.needs': '⚜ 캠페인 해금 · 명성 {n}', 'codex.credits': '초상 출처 · 저작권',
@@ -165,6 +176,17 @@ const UI = {
     'mission.alive': '{n}/{all} afloat', 'mission.rankNow': 'Now {r} · need top {g}',
     'mission.surviveClear': '⛈ You held on!', 'mission.nowFinish': 'Now finish the course', 'mission.survived': 'Survived!',
     'mission.failed': 'Mission failed', 'mission.failEscort': 'You lost the consorts you had to protect', 'mission.failTime': 'You ran out of time',
+    // Bukhang Waterway
+    'kc.animal': '🐟 Marine life', 'ev.whale': '🐋 A vast shadow passes far offshore…', 'ev.jelly': '🪼 Stung! Your helm answers slowly',
+    'ev.turtleBump': '🐢 You bumped a turtle. Sorry', 'ev.highTide': '🌊 High tide. Clear the way',
+    'ev.structure': '💥 You hit the dock works!',
+    'pop.dolphinJump': '🐬 Jumped together!', 'pop.turtlePass': '🐢 Passed carefully', 'pop.companion': '🦈 Bukhang swims with you!', 'pop.companionSub': '10s boost · double score',
+    'pop.guided': '🦈 Back to open sea', 'pop.guidedSub': 'Led out without a scare',
+    'mission.failStress': 'Bukhang is too frightened. Go slow and quiet',
+    'hud.companionOn': 'Together {n}s', 'hud.bondNear': 'Run alongside it', 'hud.bondFar': 'Nothing in sight yet',
+    'res.animals': 'Animals met on this voyage', 'res.animalNew': 'new', 'res.titleGot': 'Title earned',
+    'codex.animals': 'Marine life', 'codex.animalLocked': 'Not met yet', 'select.cine': 'Intro cutscene', 'cine.on': 'On', 'cine.off': 'Off',
+    'map.locked': '🔒 Opens after Chapter 1',
     'mission.hitsClear': '🎯 Target met!', 'mission.goalDone': 'Objective complete!',
     'codex.title': 'Codex', 'codex.note': 'All portraits are real historical sources. Attribution and licences are listed below.',
     'codex.joined': '✔ Available to recruit', 'codex.needs': '⚜ Campaign unlock · {n} fame', 'codex.credits': 'Portrait sources · licences',

@@ -4,6 +4,8 @@ export class AudioManager {
     this.ctx = null; this.enabled = false; this.master = null; this.musicOn = true;
     this.MUSIC_VOL = 0.8; this.SFX_VOL = 0.2;
     this.tracks = []; this.names = []; this.failed = new Set(); this.trackIdx = 0; this.trackName = ''; this.el = null; this.elSource = null; this.mainIdx = -1; this.mode = 'theme'; this.lastRace = -1;
+    this.mapTracks = {};   // 맵 전용 곡 { mapId: [트랙 번호] }
+    this.mapId = null;     // 지금 달리는 맵
     this.ready = this.probeMusic();
   }
 
@@ -11,7 +13,7 @@ export class AudioManager {
   //  - playlist.json: ["파일1.mp3", "파일2.mp3"] 형태 (assets/music/ 기준 상대 경로)
   //  - 없으면 bgm.mp3 단일 파일
   async probeMusic() {
-    let names = [], mainName = null;
+    let names = [], mainName = null, maps = {};
     try {
       const r = await fetch('assets/music/playlist.json', { cache: 'no-store' });
       if (r.ok) {
@@ -19,9 +21,19 @@ export class AudioManager {
         // 배열: 전곡 무작위 / 객체 {main, tracks}: main 은 메인 테마, tracks 는 무작위
         if (Array.isArray(list)) names = list.filter((f) => typeof f === 'string');
         else if (list && list.main) { mainName = list.main; names = [list.main, ...(Array.isArray(list.tracks) ? list.tracks.filter((f) => f !== list.main) : [])]; }
+        // maps: { "맵id": ["곡.mp3"] } — 그 맵에서만 나오는 곡
+        if (list && list.maps && typeof list.maps === 'object') {
+          for (const id in list.maps) {
+            const fs = (list.maps[id] || []).filter((f) => typeof f === 'string');
+            if (!fs.length) continue;
+            maps[id] = fs;
+            for (const f of fs) if (!names.includes(f)) names.push(f);
+          }
+        }
       }
     } catch (_) { /* 없음 */ }
     if (!names.length) names = ['bgm.mp3'];
+    this._mapNames = maps;
     // 파일마다 실제로 서버에 있는 주소를 찾는다. 한글 파일명은 조합형(NFC)/분리형(NFD)이 달라 404가 날 수 있어 둘 다 확인한다.
     const resolved = [];
     for (const f of names) {
@@ -37,8 +49,24 @@ export class AudioManager {
     this.tracks = resolved.map((r) => r.url); this.names = resolved.map((r) => r.name);
     this.mainIdx = resolved.findIndex((r) => r.main);
     this.failed = new Set();
+    // 맵 전용 곡을 번호로 바꿔 둔다. 파일이 없으면 그 맵은 합성 테마로 간다.
+    this.mapTracks = {};
+    for (const id in (this._mapNames || {})) {
+      const idxs = this._mapNames[id]
+        .map((f) => resolved.findIndex((r) => r.name === f.normalize('NFC').replace(/\.[^.]+$/, '')))
+        .filter((i) => i >= 0);
+      if (idxs.length) this.mapTracks[id] = idxs;
+    }
   }
   get hasExternalMusic() { return this.tracks.length > 0; }
+  // 지금 달리는 맵. 맵 전용 곡이 있으면 레이스 중에 그 곡만 나온다.
+  setMap(id) { this.mapId = id || null; }
+  get mapPool() {
+    const p = this.mapId && this.mapTracks[this.mapId];
+    return p ? p.filter((i) => !this.failed.has(i)) : null;
+  }
+  // 맵 전용 곡 파일도 없고 합성 테마도 있는 맵인지
+  get hasMapSynth() { return this.mapId === 'bukhang'; }
 
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
@@ -177,16 +205,24 @@ export class AudioManager {
   // assets/music/ 에 파일이 있으면 그 파일을, 없으면 내장 합성 뱃노래를 재생
   startMusic() {
     if (!this.enabled) return;
+    // 맵 전용 곡 파일이 있으면 그것을, 없고 전용 합성 테마가 있는 맵이면 그것을 쓴다.
+    if (this.mapPool && this.mapPool.length) { this._startExternal(); return; }
+    if (this.hasMapSynth) { this.stopMusic(); this._startBukhangTheme(); return; }   // 외부 음원이 있어도 이 맵은 전용 테마
     if (this.hasExternalMusic) { this._startExternal(); return; }
     this._startSynth();
   }
+  // 합성 테마만 끈다. 외부 음원 재생은 건드리지 않는다.
+  _stopSynth() { if (this._musicTimer) { clearInterval(this._musicTimer); this._musicTimer = null; } }
+
   _startExternal() {
+    this._stopSynth();   // 부캉이 맵에서 다른 맵으로 넘어갈 때 합성 테마가 겹쳐 남지 않게
     this._ensureEl();
     if (!this.elSource) { this.elSource = this.ctx.createMediaElementSource(this.el); this.elSource.connect(this.musicGain); this.el.volume = 1; }
     this.playRace();
   }
   // 메인 테마 모드: 타이틀/선택/결과 화면. 메인 테마만 반복 (메인이 없으면 전곡 무작위)
   playTheme() {
+    this._stopSynth();
     if (!this.hasExternalMusic) return;
     this._ensureEl();
     if (this.mode === 'theme' && this.trackIdx === this.mainIdx && !this.el.paused) return;
@@ -199,6 +235,7 @@ export class AudioManager {
   // 사용자가 목록에서 직접 고른 곡
   playIndex(i) {
     if (!this.hasExternalMusic || i < 0 || i >= this.tracks.length) return;
+    this._stopSynth();
     this._ensureEl();
     this.mode = i === this.mainIdx ? 'theme' : 'race';
     this.trackIdx = i; if (i !== this.mainIdx) this.lastRace = i;
@@ -209,7 +246,13 @@ export class AudioManager {
   playRace() {
     if (!this.hasExternalMusic) return;
     this._ensureEl();
-    const pool = this.tracks.map((_, i) => i).filter((i) => i !== this.mainIdx && !this.failed.has(i));
+    // 맵 전용 곡이 있으면 그 안에서만 고른다. 없으면 다른 맵 전용 곡은 빼고 고른다.
+    const owned = new Set();
+    for (const id in this.mapTracks) for (const i of this.mapTracks[id]) owned.add(i);
+    const mine = this.mapPool;
+    const pool = (mine && mine.length)
+      ? mine
+      : this.tracks.map((_, i) => i).filter((i) => i !== this.mainIdx && !this.failed.has(i) && !owned.has(i));
     if (!pool.length) { this.playTheme(); return; }
     if (this.mode === 'race' && !this.el.paused && pool.includes(this.trackIdx)) return; // 이미 레이스 곡 재생 중
     this.mode = 'race';
@@ -261,6 +304,59 @@ export class AudioManager {
     };
     this._musicTimer = setInterval(tick, 80);
   }
+  // ---------- 부캉이의 노래 ----------
+  // 부캉이의 바다 맵에서만 나오는 오리지널 테마. 외부 음원을 베끼지 않는다.
+  // 상어가 나오는 그 영화의 반음 두 개짜리 모티프는 쓰지 않았다. 저작권 문제도 있고,
+  // 부캉이는 쫓아오는 상어가 아니라 구경하러 온 손님이라 어울리지도 않는다.
+  //
+  // 5음계(라-도-레-미-솔)로 짜서 한국 가락처럼 들리게 하고,
+  // 아래에는 "저 밑에 뭔가 있다"는 낮은 맥박을 깔되 완전4도로 띄워 둔다.
+  // 장단은 굿거리를 흉내 낸 덩-덕-쿵-덕이다.
+  _startBukhangTheme() {
+    if (!this.enabled || this._musicTimer) return;
+    if (this.el && !this.el.paused) this.el.pause();   // 외부 음원과 겹치지 않게
+    this.trackName = '부캉이의 노래';
+    if (this.onTrackChange) this.onTrackChange(this.trackName);
+    const ctx = this.ctx;
+    const n = (s) => 440 * Math.pow(2, (s - 9) / 12);
+    const A3 = n(-12), C4 = n(-9), D4 = n(-7), E4 = n(-5), G4 = n(-2);
+    const A4 = n(0), C5 = n(3), D5 = n(5), E5 = n(7), G5 = n(10), A5 = n(12);
+    // [주파수(0=쉼), 길이(박)]
+    const melody = [
+      [A4, 2], [C5, 1], [D5, 1], [E5, 3], [D5, 1],
+      [C5, 2], [A4, 1], [G4, 1], [A4, 4],
+      [E5, 2], [D5, 1], [C5, 1], [D5, 2], [E5, 2],
+      [G5, 1], [E5, 1], [D5, 1], [C5, 1], [A4, 4],
+      [0, 2],
+      [C5, 1], [D5, 1], [E5, 2], [G5, 2], [A5, 2],
+      [G5, 1], [E5, 1], [D5, 2], [C5, 1], [A4, 3],
+    ];
+    // 낮은 맥박. 한 마디에 한 번 울리고 가끔 4도 위로 올라간다.
+    const pulse = [A3, A3, A3, D4, A3, A3, E4, D4];
+    const beat = 0.21;
+    let step = 0, pi = 0, nextTime = ctx.currentTime + 0.1, mi = 0, rest = 0;
+    const tick = () => {
+      while (nextTime < ctx.currentTime + 0.3) {
+        if (rest <= 0) {
+          const [f, l] = melody[mi]; mi = (mi + 1) % melody.length; rest = l;
+          if (f > 0) {
+            this._schedNote(f, l * beat * 0.92, nextTime, 'triangle', 0.17);
+            this._schedNote(f * 2, l * beat * 0.5, nextTime, 'sine', 0.045); // 대금 같은 배음 한 겹
+          }
+        }
+        rest--;
+        if (step % 8 === 0) { this._schedNote(pulse[pi % pulse.length], beat * 5, nextTime, 'sine', 0.26); pi++; }
+        // 굿거리: 덩 . 덕 . 쿵 . 덕 .
+        const b = step % 8;
+        if (b === 0) this._schedPerc(nextTime, 0.17);
+        else if (b === 2 || b === 6) this._schedPerc(nextTime, 0.055);
+        else if (b === 4) this._schedPerc(nextTime, 0.11);
+        step++; nextTime += beat;
+      }
+    };
+    this._musicTimer = setInterval(tick, 80);
+  }
+
   _schedNote(f, dur, t, type, vol) {
     const ctx = this.ctx;
     const o = ctx.createOscillator(); o.type = type; o.frequency.value = f;
@@ -276,7 +372,7 @@ export class AudioManager {
     o.connect(g); g.connect(this.musicGain); o.start(t); o.stop(t + 0.12);
   }
   stopMusic() {
-    if (this._musicTimer) { clearInterval(this._musicTimer); this._musicTimer = null; }
+    this._stopSynth();
     if (this.el && !this.el.paused) this.el.pause();
   }
   setMusicVolume(v) { if (this.musicGain) this.musicGain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.3); }

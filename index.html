@@ -9,7 +9,7 @@
   <title>대항해시대 레이싱 2 - Age of Sail Racing II</title>
   <meta name="description" content="역사 속 제독들과 함대를 꾸려 세계를 항해하는 3D 범선 레이싱 웹 게임. 10장의 스토리 캠페인." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E⚓%3C/text%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="./src/style.css?v=20261003a" />
+  <link rel="stylesheet" href="./src/style.css?v=20261004a" />
 </head>
 <body>
   <div id="app"></div>
@@ -221,6 +221,12 @@
             <option value="night" data-i18n="time.night">달밤</option>
           </select>
         </label>
+        <label><span data-i18n="select.cine">등장 연출</span>
+          <select id="opt-cine">
+            <option value="1" selected data-i18n="cine.on">켜기</option>
+            <option value="0" data-i18n="cine.off">끄기</option>
+          </select>
+        </label>
         <label><span data-i18n="select.consorts">동료함</span>
           <select id="opt-consorts">
             <option value="0">없음</option><option value="1">1척</option><option value="2">2척</option>
@@ -242,6 +248,7 @@
     </div>
     <p class="codex-note" data-i18n="codex.note">초상은 모두 실제 역사 자료입니다. 출처와 저작권은 화면 아래에 표시됩니다.</p>
     <div id="codex-grid"></div>
+    <div id="codex-animals"></div>
     <div id="codex-verses"></div>
     <div id="codex-credit"></div>
   </div>
@@ -310,6 +317,12 @@
         <div class="fp-head"><span id="fp-form">≡ 종렬진</span><span id="fp-cohesion">진형 0%</span></div>
         <div id="fp-meter"><div id="fp-fill"></div><span id="fp-bonus"></span></div>
         <div id="fp-ships"></div>
+      </div>
+      <!-- 교감 / 스트레스 게이지 + 만조 (부캉이의 바다) -->
+      <div id="bond-panel" class="hidden">
+        <div class="bp-head"><span id="bp-label">🦈 교감</span><span id="bp-note"></span></div>
+        <div id="bp-bar"><div id="bp-fill"></div></div>
+        <div id="tide-row" class="hidden"><span class="tide-cap">🌊</span><div id="tide-bar"><div id="tide-fill"></div></div><span id="tide-state"></span></div>
       </div>
     </div>
     <div id="hud-bottomright">
@@ -432,6 +445,6 @@
       }
     }
   </script>
-  <script type="module" src="./src/main.js?v=20261003a" onerror="window.showLoadError('main.js 또는 three.js 모듈을 불러오지 못했습니다. 서버 주소(http://)로 열었는지, 인터넷이 연결되어 있는지 확인하세요.')"></script>
+  <script type="module" src="./src/main.js?v=20261004a" onerror="window.showLoadError('main.js 또는 three.js 모듈을 불러오지 못했습니다. 서버 주소(http://)로 열었는지, 인터넷이 연결되어 있는지 확인하세요.')"></script>
 </body>
 </html>

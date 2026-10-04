@@ -1,7 +1,7 @@
 // 레이스 코스: 항로, 체크포인트, 섬, 암초, 소용돌이, 보급품, 크라켄
 import * as THREE from 'three';
-import { waveHeight } from './ocean.js?v=20261003a';
-import { DEFAULT_MAP } from './maps.js?v=20261003a';
+import { waveHeight } from './ocean.js?v=20261004a';
+import { DEFAULT_MAP } from './maps.js?v=20261004a';
 
 // 시드 난수
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -61,12 +61,16 @@ export class Track {
     this.verses = [];       // 말씀 (펼쳐진 책)
     this.buoys = [];
     this.animated = [];
+    this.bridges = [];      // 보도교 (부캉이의 바다)
+    this.structures = [];   // 부두·방파제 등 물 위 구조물 {x,z,r}
+    this.seaMark = null;    // 외해 표지 (유도 미션의 목표 지점)
 
     this._buildBuoys();
     this._buildStartGate();
     this._buildRaceLine();
     this._buildIslands();
-    this._buildRocks();
+    // 항구 맵은 암초 대신 방파제·컨테이너·정박선이 장애물 노릇을 한다
+    if (map.style === 'harbor') this._buildHarbor(); else this._buildRocks();
     this._buildWhirlpools();
     this._buildPickups();
     this._buildCoins();
@@ -547,6 +551,7 @@ export class Track {
 
   // ----- 섬 -----
   _buildIslands() {
+    if (this.map.style === 'harbor') return; // 항구는 섬 대신 부두와 도시를 세운다 (_buildHarbor)
     const rand = this.rand;
     const sandMat = new THREE.MeshStandardMaterial({ color: 0xe8d59a, roughness: 1 });
     const grassMat = new THREE.MeshStandardMaterial({ color: 0x4f9a3a, roughness: 1 });
@@ -668,6 +673,233 @@ export class Track {
       this.obstacles.push({ x, z, r: r * 0.92, type: 'island' });
     }
   }
+
+  // ----- 부캉이의 바다: 항구 지형 -----
+  // 방파제, 테트라포드, 크레인, 컨테이너, 정박선, 보도교 여섯, 오륙도.
+  // 전부 코드로 만든다. 외부 모델이나 텍스처 파일은 쓰지 않는다.
+  _buildHarbor() {
+    const rand = this.rand, N = this.sampleCount;
+    const [c0, c1] = this.map.canal || [0.4, 0.74];
+    const at = (u) => Math.floor((((u % 1) + 1) % 1) * N);
+    const G = GUARD_OFFSET;
+
+    const concrete = new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: 1 });
+    const concreteDark = new THREE.MeshStandardMaterial({ color: 0x6f6f68, roughness: 1 });
+    const steel = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, roughness: 0.5, metalness: 0.55 });
+    const steelRed = new THREE.MeshStandardMaterial({ color: 0xc0564a, roughness: 0.5, metalness: 0.4 });
+    const hullMat = new THREE.MeshStandardMaterial({ color: 0x2d3b4a, roughness: 0.7 });
+    const deckMat = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: 0.85 });
+
+    const addStruct = (x, z, r) => { this.structures.push({ x, z, r }); this.obstacles.push({ x, z, r, type: 'structure' }); };
+
+    // ---------- 1. 방파제와 테트라포드 ----------
+    // 수로 구간 바깥쪽을 따라 낮은 콘크리트 벽을 세운다. 폭이 좁아 보이게 하는 장치다.
+    const wallGeo = new THREE.BoxGeometry(10, 7, 26);
+    const wall = new THREE.InstancedMesh(wallGeo, concrete, 260);
+    const tetraGeo = new THREE.TetrahedronGeometry(3.2);
+    const tetra = new THREE.InstancedMesh(tetraGeo, concreteDark, 420);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
+    let wi = 0, ti = 0;
+    const canalSpan = Math.round(((c1 - c0 + 1) % 1) * N);  // 수로 구간의 샘플 수
+    const STEP = 10;
+    for (let s = 0; s <= canalSpan && wi < 258; s += STEP) {
+      const i = (at(c0) + s) % N;
+      const p = this.pointAt(i), n = this.normalAt(i), tg = this.tangentAt(i);
+      const head = Math.atan2(tg.x, tg.z);
+      for (const sd of [-1, 1]) {
+        const wx = p.x + n.x * sd * (G + 9), wz = p.z + n.z * sd * (G + 9);
+        q.setFromEuler(new THREE.Euler(0, head, 0));
+        pv.set(wx, 2.2, wz); m.compose(pv, q, sc);
+        wall.setMatrixAt(wi++, m);
+        addStruct(wx, wz, 8);
+        // 벽 앞에 테트라포드 몇 개
+        for (let k = 0; k < 2 && ti < 420; k++) {
+          const tx = wx - n.x * sd * (5 + rand() * 3) + (rand() - 0.5) * 8;
+          const tz = wz - n.z * sd * (5 + rand() * 3) + (rand() - 0.5) * 8;
+          q.setFromEuler(new THREE.Euler(rand() * 3, rand() * 3, rand() * 3));
+          pv.set(tx, 1.2 + rand(), tz); m.compose(pv, q, sc);
+          tetra.setMatrixAt(ti++, m);
+        }
+      }
+    }
+    wall.count = wi; tetra.count = ti;
+    this.group.add(wall, tetra);
+
+    // ---------- 2. 보도교 여섯 ----------
+    // 지나갈 때 위에서 구경하는 사람과 스마트폰 플래시가 터진다.
+    const DECK_Y = 31;
+    const personGeo = new THREE.CapsuleGeometry(0.55, 1.5, 3, 6);
+    const personMat = new THREE.MeshStandardMaterial({ color: 0x2a3038, roughness: 0.9 });
+    const flashGeo = new THREE.PlaneGeometry(2.6, 2.6);
+    for (let b = 0; b < 6; b++) {
+      const u = c0 + ((b + 0.5) / 6) * (c1 - c0);
+      const i = at(u);
+      const p = this.pointAt(i), tg = this.tangentAt(i);
+      const g = new THREE.Group();
+      const span = (G + 16) * 2;
+      // 상판
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(span, 1.6, 9), deckMat);
+      deck.position.y = DECK_Y; g.add(deck);
+      // 난간
+      for (const sd of [-1, 1]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(span, 0.3, 0.3), steel);
+        rail.position.set(0, DECK_Y + 2.2, sd * 4.2); g.add(rail);
+        for (let r = 0; r < 18; r++) {
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.2, 0.2), steel);
+          post.position.set(-span / 2 + (r / 17) * span, DECK_Y + 1.6, sd * 4.2); g.add(post);
+        }
+      }
+      // 아치 (부산항대교를 닮은 붉은 강재 아치)
+      const archPts = [];
+      for (let k = 0; k <= 14; k++) { const tt = k / 14; archPts.push(new THREE.Vector3(-span / 2 + tt * span, DECK_Y + Math.sin(tt * Math.PI) * 17, 0)); }
+      const arch = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(archPts), 24, 0.8, 6, false), b % 2 ? steelRed : steel);
+      g.add(arch);
+      for (let k = 1; k < 7; k++) {
+        const tt = k / 7;
+        const h = Math.sin(tt * Math.PI) * 17;
+        const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, h, 4), steel);
+        cable.position.set(-span / 2 + tt * span, DECK_Y + h / 2, 0); g.add(cable);
+      }
+      // 교각 (항로 밖)
+      for (const sd of [-1, 1]) {
+        const pier = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 4.2, DECK_Y + 2, 8), concrete);
+        pier.position.set(sd * (G + 13), (DECK_Y + 2) / 2 - 2, 0); g.add(pier);
+      }
+      // 구경하는 사람들
+      const people = new THREE.InstancedMesh(personGeo, personMat, 22);
+      for (let k = 0; k < 22; k++) {
+        const x = -span / 2 + 6 + (k / 21) * (span - 12) + (rand() - 0.5) * 3;
+        pv.set(x, DECK_Y + 1.9, (rand() - 0.5) * 5);
+        q.setFromEuler(new THREE.Euler(0, rand() * 6.28, 0));
+        m.compose(pv, q, sc); people.setMatrixAt(k, m);
+      }
+      g.add(people);
+      // 플래시 (더해지는 블렌딩. 보일 때만 켠다)
+      const flashes = [];
+      for (let k = 0; k < 7; k++) {
+        const f = new THREE.Mesh(flashGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+        f.position.set(-span / 2 + 10 + rand() * (span - 20), DECK_Y + 3.2, (rand() - 0.5) * 4);
+        g.add(f); flashes.push({ mesh: f, t: rand() * 3 });
+      }
+      g.position.set(p.x, 0, p.z);
+      g.rotation.y = Math.atan2(tg.x, tg.z);
+      this.group.add(g);
+      this.bridges.push({ x: p.x, z: p.z, idx: i, mesh: g, flashes, no: b + 1 });
+    }
+
+    // ---------- 3. 크레인과 컨테이너 ----------
+    const boxGeo = new THREE.BoxGeometry(12, 6, 6);
+    const colors = [0xd04a3a, 0x2f7fc0, 0xe0a63c, 0x3f9a5c, 0xb0b4bb];
+    for (let c = 0; c < 5; c++) {
+      const u = c0 - 0.06 + (c / 5) * (c1 - c0 + 0.12);
+      const i = at(u);
+      const p = this.pointAt(i), n = this.normalAt(i), tg = this.tangentAt(i);
+      const sd = c % 2 ? 1 : -1;
+      const bx = p.x + n.x * sd * (G + 34), bz = p.z + n.z * sd * (G + 34);
+      // 컨테이너 더미
+      const stack = new THREE.Group();
+      for (let r = 0; r < 3; r++) for (let k = 0; k < 3; k++) {
+        const box = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color: colors[(r + k + c) % colors.length], roughness: 0.85 }));
+        box.position.set((k - 1) * 13, 3.2 + r * 6.2, (r % 2) * 1.5);
+        stack.add(box);
+      }
+      stack.position.set(bx, 0, bz); stack.rotation.y = Math.atan2(tg.x, tg.z);
+      this.group.add(stack);
+      addStruct(bx, bz, 22);
+      // 갠트리 크레인
+      if (c % 2 === 0) {
+        const cr = new THREE.Group();
+        for (const lx of [-14, 14]) for (const lz of [-9, 9]) {
+          const leg = new THREE.Mesh(new THREE.BoxGeometry(2, 44, 2), steelRed);
+          leg.position.set(lx, 22, lz); cr.add(leg);
+        }
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(34, 3, 4), steelRed); beam.position.y = 45; cr.add(beam);
+        const boom = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.6, 58), steelRed); boom.position.set(0, 47, -18); cr.add(boom);
+        const cab = new THREE.Mesh(new THREE.BoxGeometry(4, 3.4, 5), steel); cab.position.set(0, 42, -8); cr.add(cab);
+        const cx = p.x + n.x * sd * (G + 66), cz = p.z + n.z * sd * (G + 66);
+        cr.position.set(cx, 0, cz); cr.rotation.y = Math.atan2(tg.x, tg.z);
+        this.group.add(cr);
+      }
+    }
+
+    // ---------- 4. 정박한 대형 선박 ----------
+    for (const [u, sd, len] of [[c0 + 0.04, -1, 82], [c1 - 0.06, 1, 96]]) {
+      const i = at(u);
+      const p = this.pointAt(i), n = this.normalAt(i), tg = this.tangentAt(i);
+      const sx = p.x + n.x * sd * (G + 20), sz = p.z + n.z * sd * (G + 20);
+      const ship = new THREE.Group();
+      const hull = new THREE.Mesh(new THREE.BoxGeometry(14, 11, len), hullMat); hull.position.y = 4;
+      const band = new THREE.Mesh(new THREE.BoxGeometry(14.4, 1.4, len), new THREE.MeshStandardMaterial({ color: 0xc0564a })); band.position.y = 8.6;
+      const house = new THREE.Mesh(new THREE.BoxGeometry(13, 13, 16), deckMat); house.position.set(0, 16, -len * 0.3);
+      const funnel = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.8, 8, 10), new THREE.MeshStandardMaterial({ color: 0x2f4f6f })); funnel.position.set(0, 26, -len * 0.33);
+      ship.add(hull, band, house, funnel);
+      for (let k = 0; k < 4; k++) {
+        const cont = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color: colors[k % colors.length], roughness: 0.85 }));
+        cont.position.set(0, 13, len * 0.25 - k * 13); cont.rotation.y = Math.PI / 2; ship.add(cont);
+      }
+      ship.position.set(sx, 0, sz); ship.rotation.y = Math.atan2(tg.x, tg.z);
+      this.group.add(ship);
+      addStruct(sx, sz, 16);
+    }
+
+    // ---------- 5. 오륙도 — 외해로 나가는 표지 ----------
+    // 유도 미션은 부캉이를 여기까지 데려오는 것이 목표다.
+    const markIdx = at(0.06);
+    const mp = this.pointAt(markIdx), mn = this.normalAt(markIdx);
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x6a6b63, roughness: 1, flatShading: true });
+    const greenTop = new THREE.MeshStandardMaterial({ color: 0x3c6b3f, roughness: 1 });
+    const group56 = new THREE.Group();
+    for (let k = 0; k < 6; k++) {
+      const r = 11 + rand() * 9, h = 16 + rand() * 20;
+      const rock = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.55, r, h, 6), rockMat);
+      rock.position.set(k * 30 - 75 + (rand() - 0.5) * 8, h / 2 - 3, (rand() - 0.5) * 26);
+      rock.rotation.y = rand() * Math.PI;
+      group56.add(rock);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.56, 1.6, 6), greenTop);
+      cap.position.set(rock.position.x, h - 3.2, rock.position.z);
+      group56.add(cap);
+    }
+    const mx = mp.x + mn.x * (G + 95), mz = mp.z + mn.z * (G + 95);
+    group56.position.set(mx, 0, mz);
+    this.group.add(group56);
+    addStruct(mx, mz, 70);
+    this.seaMark = { x: mp.x, z: mp.z, idx: markIdx, r: 60 };
+
+    // ---------- 6. 도시 실루엣 ----------
+    // 멀리 둘러선 건물과 크루즈선. 장애물이 아니라 배경이다.
+    const cityMat = new THREE.MeshStandardMaterial({ color: 0x5c6670, roughness: 0.9 });
+    const cityGeo = new THREE.BoxGeometry(1, 1, 1);
+    const city = new THREE.InstancedMesh(cityGeo, cityMat, 150);
+    for (let k = 0; k < 150; k++) {
+      const a = rand() * Math.PI * 2, d = (1050 + rand() * 900) * this.scale;
+      const w = 26 + rand() * 40, h = 40 + rand() * 170;
+      pv.set(Math.cos(a) * d, h / 2 - 4, Math.sin(a) * d + 330 * this.scale);
+      q.setFromEuler(new THREE.Euler(0, rand() * 1.6, 0));
+      sc.set(w, h, w * (0.7 + rand() * 0.6));
+      m.compose(pv, q, sc); city.setMatrixAt(k, m);
+    }
+    sc.set(1, 1, 1);
+    this.group.add(city);
+  }
+
+  // 전조 연출: 다리와 크레인 위의 갈매기가 한꺼번에 날아오른다
+  spookGulls() { this._gullSpook = 1; }
+
+  // 다리 위 스마트폰 플래시. 가까운 다리에서만 터뜨려서 값을 아낀다.
+  _updateBridges(dt, t, px = this._px ?? 0, pz = this._pz ?? 0) {
+    for (const br of this.bridges) {
+      const near = (br.x - px) ** 2 + (br.z - pz) ** 2 < 320 * 320;
+      for (const f of br.flashes) {
+        if (!near) { if (f.mesh.material.opacity) f.mesh.material.opacity = 0; continue; }
+        f.t -= dt;
+        if (f.t <= 0) { f.t = 0.35 + Math.random() * 1.9; f.on = 0.12; }
+        f.on = Math.max(0, (f.on || 0) - dt);
+        f.mesh.material.opacity = f.on > 0 ? 0.85 : 0;
+      }
+    }
+  }
+  // 플레이어 위치를 알려 주면 다리 플래시와 컬링이 그 기준으로 돈다
+  setFocus(x, z) { this._px = x; this._pz = z; }
 
   // ----- 암초 (항로 가장자리 근처) -----
   _buildRocks() {
@@ -887,6 +1119,8 @@ export class Track {
       v.mesh.rotation.y += dt * 0.5;
       v.mesh.position.y = 2.1 + waveHeight(v.x, v.z, t) + Math.sin(t * 1.8 + v.x) * 0.25;
     }
+    // 다리 위 스마트폰 플래시. 가까이 가면 더 자주 터진다.
+    if (this.bridges.length) this._updateBridges(dt, t);
     for (const d of this.discoveries) {
       if (!d.active) { d.timer -= dt; if (d.timer <= 0) { d.active = true; d.mesh.visible = true; } continue; }
       d.orb.rotation.y += dt * 1.5; d.orb.rotation.x += dt * 0.7;

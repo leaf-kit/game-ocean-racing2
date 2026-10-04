@@ -1,5 +1,5 @@
 // 역사 인물 22명: 실제 초상화(위키미디어 공용)와 함대 특성
-import { LANG } from './i18n.js?v=20261003a';
+import { LANG } from './i18n.js?v=20261004a';
 // portrait: assets/portraits/<id>.jpg (320px), <id>_s.jpg (96px 배지용)
 // trait: 함대에 배치했을 때 적용되는 특성. 자세한 계산은 fleet.js의 applyOfficerTraits 참고.
 // rank: 영입에 필요한 명성 (0이면 처음부터 사용 가능)
@@ -17,6 +17,8 @@ export const TRAITS = {
   patron:       { icon: '👑', name: '후원', desc: '명성 획득이 30% 늘어난다' },
   cartographer: { icon: '🗺', name: '해도', desc: '미니맵에 장애물이 미리 표시되고 점수 +15%' },
   corsair:      { icon: '🏴', name: '사략', desc: '포격 명중 시 전속 항해 게이지가 크게 찬다' },
+  trader:       { icon: '🏮', name: '교역', desc: '금화와 보물의 점수가 35% 늘어난다' },
+  naturalist:   { icon: '🐟', name: '박물', desc: '동물 도감 등록 명성 2배, 교감 게이지가 40% 빨리 찬다' },
 };
 
 // role: 게임 안에서의 역할 이름 (표시용)
@@ -153,6 +155,26 @@ export const FIGURES = [
     bio: '콜럼버스의 제안을 거절했던 궁정 학자들을 물리치고 세 척의 배를 내주었다. 그 결정 하나로 스페인은 한 세기 동안 세계에서 가장 부유한 나라가 되었다.',
     line: '가서 보고 오시오. 배는 내가 내겠소.',
   },
+  // ---- 부캉이의 바다와 함께 들어온 세 사람 ----
+  // 셋 다 전해지는 초상이 없다. 얼굴을 지어내지 않고 실루엣 배지를 쓴다.
+  {
+    id: 'jangbogo', name: '장보고', en: 'Jang Bogo', nation: '신라', years: '?~846',
+    role: '해상왕', trait: 'trader', fame: 1700, noPortrait: true,
+    bio: '완도에 청해진을 세우고 신라와 당과 일본을 잇는 바닷길을 쥐었다. 해적을 눌러 항로를 열고 그 길로 교역을 했다. 부산 앞바다에서 가장 오래된 뱃사람이다. 전해지는 초상은 없다.',
+    line: '바다를 지키는 자가 바다로 먹고산다.',
+  },
+  {
+    id: 'choebu', name: '최부', en: 'Choe Bu', nation: '조선', years: '1454~1504',
+    role: '표류자', trait: 'navigator', fame: 2300, noPortrait: true,
+    bio: '제주에서 배를 탔다가 풍랑에 밀려 중국 저장성에 닿았다. 걸어서 북경을 거쳐 조선으로 돌아오는 데 여섯 달이 걸렸고, 그 여정을 『표해록』에 적었다. 전해지는 초상은 없다.',
+    line: '바다가 데려다 놓은 곳에서부터 걸어서 돌아왔소.',
+  },
+  {
+    id: 'jeongyakjeon', name: '정약전', en: 'Jeong Yak-jeon', nation: '조선', years: '1758~1816',
+    role: '박물학자', trait: 'naturalist', fame: 3200, noPortrait: true,
+    bio: '흑산도로 유배되어 거기서 생을 마쳤다. 섬사람들에게 묻고 직접 보아 바다 생물을 정리한 『자산어보』를 남겼다. 이름과 생김새와 맛과 쓰임을 함께 적은 책이다. 전해지는 초상은 없다.',
+    line: '이름을 붙여 적어 두지 않으면, 본 것도 못 본 것이 되오.',
+  },
 ];
 
 export const FIGURE_MAP = Object.fromEntries(FIGURES.map((f) => [f.id, f]));
@@ -163,7 +185,12 @@ export const findFigure = (id) => FIGURE_MAP[id] || FIGURES[0];
 export const figName = (f) => (LANG === 'en' ? f.en : f.name);
 
 // 초상 이미지 경로 (big: 320px 카드용, small: 96px 배지용)
-export const portraitSrc = (id, small = false) => `./assets/portraits/${id}${small ? '_s' : ''}.jpg`;
+// 전해지는 초상이 없는 인물은 얼굴 없는 실루엣 배지를 쓴다. 없는 얼굴을 지어내지 않는다.
+export const portraitSrc = (id, small = false) => {
+  const f = FIGURE_MAP[id];
+  if (f && f.noPortrait) return `./assets/portraits/${id}.svg`;
+  return `./assets/portraits/${id}${small ? '_s' : ''}.jpg`;
+};
 
 // 명성으로 해금되는 인물 목록 (명성 오름차순)
 export const byFame = () => [...FIGURES].sort((a, b) => a.fame - b.fame);

@@ -1,23 +1,25 @@
 // 대항해시대 레이싱 - 메인 게임 루프
 import * as THREE from 'three';
-import { SHIPS, SHIP_CATEGORIES, AI_NAMES, buildShipMesh, renderShipPreview, pickAiName } from './ships.js?v=20261003a';
-import { Environment, TIME_PRESETS, waveHeight, SEA } from './ocean.js?v=20261003a';
-import { Track, TRACK_HALF_WIDTH, GUARD_OFFSET, CHECKPOINT_COUNT } from './track.js?v=20261003a';
-import { Boat } from './boat.js?v=20261003a';
-import { aiControl, difficultyParams } from './ai.js?v=20261003a';
-import { HUD, formatTime } from './hud.js?v=20261003a';
-import { Particles, Seagulls, Wakes } from './effects.js?v=20261003a';
-import { AudioManager } from './audio.js?v=20261003a';
-import { PORTS, TRIVIA, EVENTS, FIGURES as HIST_FIGURES, DISCOVERIES, MAP_ROUTES } from './history.js?v=20261003a';
-import { WORLD_ROUTE } from './worldmap.js?v=20261003a';
-import { t, LANG, setLang, applyStaticI18n, applyEnglishData, ordinal } from './i18n.js?v=20261003a';
-import { MAPS, DEFAULT_MAP, findMap } from './maps.js?v=20261003a';
-import { FIGURES, TRAITS, findFigure, portraitSrc, figName } from './figures.js?v=20261003a';
-import { Fleet, FORMATION_LIST, findFormation, SPACING_LIST, findSpacing, formationDepth, MAX_CONSORTS, ORDERS, applyOfficerTraits, freshTraits } from './fleet.js?v=20261003a';
-import { CHAPTERS, findChapter, chapterCount, MISSION_TYPES, goalText, meets, gradeOf, GRADE_COLOR } from './campaign.js?v=20261003a';
-import { SAVE, persist, addFame, recordChapter, markSeen, meetVerse } from './save.js?v=20261003a';
-import { VERSES, findVerse, stageOf, blankOut, MEMORIZED_AT } from './scripture.js?v=20261003a';
-import { Cutscene } from './story.js?v=20261003a';
+import { SHIPS, SHIP_CATEGORIES, AI_NAMES, buildShipMesh, renderShipPreview, pickAiName } from './ships.js?v=20261004a';
+import { Environment, TIME_PRESETS, waveHeight, SEA } from './ocean.js?v=20261004a';
+import { Track, TRACK_HALF_WIDTH, GUARD_OFFSET, CHECKPOINT_COUNT } from './track.js?v=20261004a';
+import { Boat } from './boat.js?v=20261004a';
+import { aiControl, difficultyParams } from './ai.js?v=20261004a';
+import { HUD, formatTime } from './hud.js?v=20261004a';
+import { Particles, Seagulls, Wakes } from './effects.js?v=20261004a';
+import { AudioManager } from './audio.js?v=20261004a';
+import { PORTS, TRIVIA, EVENTS, FIGURES as HIST_FIGURES, DISCOVERIES, MAP_ROUTES } from './history.js?v=20261004a';
+import { WORLD_ROUTE } from './worldmap.js?v=20261004a';
+import { t, LANG, setLang, applyStaticI18n, applyEnglishData, ordinal } from './i18n.js?v=20261004a';
+import { MAPS, DEFAULT_MAP, findMap } from './maps.js?v=20261004a';
+import { FIGURES, TRAITS, findFigure, portraitSrc, figName } from './figures.js?v=20261004a';
+import { Fleet, FORMATION_LIST, findFormation, SPACING_LIST, findSpacing, formationDepth, MAX_CONSORTS, ORDERS, applyOfficerTraits, freshTraits } from './fleet.js?v=20261004a';
+import { CHAPTERS, findChapter, chapterCount, MISSION_TYPES, goalText, meets, gradeOf, GRADE_COLOR } from './campaign.js?v=20261004a';
+import { SAVE, persist, addFame, recordChapter, markSeen, meetVerse, recordBond, grantTitle } from './save.js?v=20261004a';
+import { VERSES, findVerse, stageOf, blankOut, MEMORIZED_AT } from './scripture.js?v=20261004a';
+import { Cutscene } from './story.js?v=20261004a';
+import { Wildlife, ANIMALS } from './wildlife.js?v=20261004a';
+import { Bukhang, BOND_FULL } from './bukhang.js?v=20261004a';
 
 applyEnglishData();
 applyStaticI18n();
@@ -120,13 +122,19 @@ const G = {
   map: DEFAULT_MAP,
   // SHIFT 연타: 게이지(0~1), 마지막 탭 시각, 안내 타이머
   tap: { meter: 0, last: -10, hintT: 0, hintOn: false, taps: 0, bursts: 0 },
+  // 부캉이의 바다
+  wildlife: null, shark: null,
+  animalsMet: [], animalsNew: [],         // 이번 항해에서 본 종 / 도감에 처음 올린 종
+  tide: { phase: 0, level: 0, high: false },
+  guide: { stress: 0, led: 0, done: false, slowT: 0 },
 };
 const COMBO_WINDOW = 4.0;
 const cutscene = new Cutscene();
 
 function freshStats() { return { nearMiss: 0, overtakes: 0, coins: 0, chests: 0, slipstreams: 0, perfectStart: false, maxCombo: 0, bestLap: Infinity, storms: 0, rankPts: 0, jumps: 0, loops: 0, warps: 0, fleetTime: 0, orders: 0 }; }
 // 미션 진행 상황. gradeOf()가 이 모양을 읽는다.
-function freshMission() { return { hits: 0, treasure: 0, aliveConsorts: 0, survived: false, surviveT: 0, rank: 9, time: 0, finished: false, crashes: 0, failed: false, failReason: '' }; }
+function freshMission() { return { hits: 0, treasure: 0, aliveConsorts: 0, survived: false, surviveT: 0, rank: 9, time: 0, finished: false, crashes: 0, failed: false, failReason: '',
+  guided: false, maxStress: 0, companions: 0 }; }
 
 // ---------- 입력 ----------
 window.addEventListener('keydown', (e) => {
@@ -232,16 +240,28 @@ audio.ready.then(() => {
 
 // ---------- 맵 선택 (자유 항해) ----------
 G.map = findMap(SAVE.freeMap);
+// 자유 항해에서 고를 수 있는 맵인가. 부캉이의 바다는 1장을 마쳐야 열린다.
+function mapUnlocked(m) { return m.id !== 'bukhang' || SAVE.chapter >= 1; }
+
 function buildMapOptions() {
   const sel = $('opt-map'); if (sel.options.length) return;
-  for (const m of MAPS) { const o = document.createElement('option'); o.value = m.id; o.textContent = LANG === 'en' ? m.en : m.name; sel.appendChild(o); }
+  for (const m of MAPS) {
+    const o = document.createElement('option'); o.value = m.id;
+    const open = mapUnlocked(m);
+    o.textContent = (LANG === 'en' ? m.en : m.name) + (open ? '' : '  ' + t('map.locked'));
+    o.disabled = !open;
+    sel.appendChild(o);
+  }
+  if (!mapUnlocked(G.map)) { G.map = DEFAULT_MAP; SAVE.freeMap = G.map.id; persist(); }
   sel.value = G.map.id;
   sel.addEventListener('change', () => { G.map = findMap(sel.value); SAVE.freeMap = G.map.id; persist(); });
   const ml = $('menu-maps');
   for (const m of MAPS) {
-    const li = document.createElement('li'); li.textContent = LANG === 'en' ? m.en : m.name; li.dataset.id = m.id;
+    const li = document.createElement('li'); li.dataset.id = m.id;
+    li.textContent = (LANG === 'en' ? m.en : m.name) + (mapUnlocked(m) ? '' : '  ' + t('map.locked'));
     li.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!mapUnlocked(m)) { hud.event(t('map.locked'), 2000); return; }
       G.mode = 'free'; G.chapter = null; G.map = m; sel.value = m.id; SAVE.freeMap = m.id; persist();
       $('top-menu-list').classList.add('hidden'); $('result-screen').classList.add('hidden'); startRace();
     });
@@ -332,6 +352,7 @@ function showCodex() {
   G.state = 'select'; G.attract = false;
   hud.hide(); showScreen('codex-screen');
   updateFame();
+  buildAnimalCodex();
   const grid = $('codex-grid');
   grid.innerHTML = FIGURES.map((f) => {
     const owned = SAVE.fame >= f.fame; // 도감은 캠페인 기준 해금 상태를 보여 준다
@@ -398,6 +419,12 @@ function loadCredits() {
 
 // ---------- 출항 준비 (함대 편성) ----------
 $('opt-name').addEventListener('change', () => { SAVE.name = $('opt-name').value.trim().slice(0, 12); persist(); });
+// 등장 연출 on/off (저사양·접근성). 끄면 부캉이가 조용히 나타난다.
+(() => {
+  const el = $('opt-cine'); if (!el) return;
+  el.value = SAVE.cinematics === false ? '0' : '1';
+  el.addEventListener('change', () => { SAVE.cinematics = el.value === '1'; persist(); });
+})();
 $('opt-name').value = SAVE.name || '';
 function admiralName() { return ($('opt-name').value || '').trim().slice(0, 12) || t('name.default'); }
 
@@ -701,10 +728,16 @@ function buildWorld(tod, map = G.map) {
   clearScene();
   G.env = new Environment(scene, tod, 5000, map);
   G.track = new Track(scene, map);
-  G.env.setShallows(G.track.islands); // 섬 둘레에 얕은 여울을 깐다
+  // 섬 둘레에 얕은 여울을 깐다. 항구 맵은 섬이 없으므로 부두와 방파제를 같은 자리에 넣는다.
+  G.env.setShallows(G.track.islands.length ? G.track.islands : G.track.structures);
   G.particles = new Particles(scene);
   G.wakes = new Wakes(scene);
   G.gulls = new Seagulls(scene, new THREE.Vector3(250, 0, 200), 12);
+  // 부캉이의 바다에만 사는 것들. 다른 맵에서는 만들지 않는다.
+  if (map.wildlife) {
+    G.wildlife = new Wildlife(scene, G.track, map.canal);
+    G.shark = new Bukhang(scene, G.track);
+  } else { G.wildlife = null; G.shark = null; }
   G.projectiles = [];
   G.boats = [];
   hud.mapCache = null;
@@ -798,6 +831,12 @@ function startRace() {
   // 바람 초기화
   G.wind.dir = Math.random() * Math.PI * 2; G.wind.targetDir = G.wind.dir; G.wind.strength = 0.7; G.wind.gust = 0; G.wind.gustTimer = 18 + Math.random() * 10;
 
+  // 맵 전용 음악 (부캉이의 바다에는 전용 테마가 있다)
+  audio.setMap(G.map.id);
+  G.animalsMet = []; G.animalsNew = [];
+  G.tide = { phase: Math.random() * Math.PI * 2, level: 0, high: false };
+  G.guide = { stress: 0, led: 0, done: false, slowT: 0 };
+  if (G.shark) G.shark.reset(true);
   G.raceTime = 0; G.countdown = 3.6; G.state = 'countdown'; G.camMode = 0; G.finishTimer = 0; G.krakenActive = false; G.lastLapTime = 0;
   G.countStep = 4;
   G.score = 0; G.combo = 0; G.comboTimer = 0; G.stats = freshStats();
@@ -848,6 +887,15 @@ function updateMissionHud() {
     case 'escort':
       cur = m.aliveConsorts; max = Math.max(1, G.fleet ? G.fleet.size : 1);
       text = t('mission.alive', { n: m.aliveConsorts, all: G.fleet ? G.fleet.size : 0 }); break;
+    case 'guide': {
+      // 부캉이가 외해 표지에 얼마나 가까워졌는가
+      const sk = G.shark, mk = G.track?.seaMark;
+      const far = 900;
+      const d = sk && mk ? Math.hypot(sk.x - mk.x, sk.z - mk.z) : far;
+      cur = Math.max(0, far - Math.min(far, d)); max = far;
+      text = m.guided ? t('pop.guided') : Math.round(Math.min(far, d)) + 'm';
+      break;
+    }
     default: {
       const tr = G.track;
       cur = tr ? G.player.progress : 0; max = tr ? G.laps * tr.totalLength : 1;
@@ -1408,7 +1456,7 @@ function handleCollisions(dt) {
         const spd = Math.abs(b.speed);
         b.hitObstacle(nx, nz, strength);
         G.particles.burst(b.pos.x - nx * R, 1, b.pos.z - nz * R, 25, { speed: 6, up: 8, life: 0.9, size: 3, color: 0xffffff });
-        if (b.isPlayer) { audio.hit(Math.min(1, spd / 30)); hud.hitFlash(); G.camShake = 0.6; hud.event(o.type === 'rock' ? t('ev.rock') : t('ev.island'), 1500); breakCombo(); G.storm.hitDuring = true; o.nearT = G.t; if (G.mission) G.mission.crashes++; }
+        if (b.isPlayer) { audio.hit(Math.min(1, spd / 30)); hud.hitFlash(); G.camShake = 0.6; hud.event(o.type === 'rock' ? t('ev.rock') : o.type === 'structure' ? t('ev.structure') : t('ev.island'), 1500); breakCombo(); G.storm.hitDuring = true; o.nearT = G.t; if (G.mission) G.mission.crashes++; }
         else if (b.consort) { damageConsort(b, 0.22 * Math.min(1.6, spd / 22), o.type === 'rock' ? t('fleet.hitRock') : t('fleet.hitIsland')); }
         else if (b.pos.distanceTo(G.player.pos) < 120) audio.hit(0.4);
       } else if (b.isPlayer && fast && d < o.r + R + 9 && G.t - (o.nearT ?? -10) > 3 && G.state === 'racing') {
@@ -1674,6 +1722,8 @@ function updateSlipstream(dt) {
 const ballGeo = new THREE.SphereGeometry(0.7, 8, 8);
 const ballMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.7, roughness: 0.4 });
 function fireCannon(boat) {
+  // 유도 미션에서는 포문을 닫는다. 소리만으로도 부캉이가 놀란다.
+  if (G.chapter?.type === 'guide' && G.mode === 'campaign') return;
   if (boat.cannonCd > 0 || boat.finished) return;
   if (boat.consort?.sunk) return;
   // 포술 부제독이 있으면 재장전이 빨라진다. HUD 게이지는 cannonMax를 기준으로 그린다.
@@ -1781,6 +1831,8 @@ function updateCamera(dt) {
   camera.lookAt(camTarget);
   // 선체 기울기에 맞춰 카메라도 아주 살짝 롤
   camera.rotateZ(-p.heel * 0.18);
+  // 부캉이 선회 중에는 화각이 아주 살짝 좁아졌다 풀린다
+  if (G.fovNudge) { fovT += G.fovNudge; G.fovNudge *= Math.max(0, 1 - dt * 1.2); if (Math.abs(G.fovNudge) < 0.05) G.fovNudge = 0; }
   camera.fov += (fovT - camera.fov) * Math.min(1, dt * 2.5); camera.updateProjectionMatrix();
   hud.setSpeedLines(rush * 0.45 + (p.boosting ? 0.45 : 0) + (p.draftMul > 1 ? 0.2 : 0) + turbo * 0.8 + air * 0.4);
 }
@@ -1864,6 +1916,15 @@ function showResults() {
     fameEl.innerHTML = `<span class="rf-gain">⚜ +${gained.toLocaleString('ko-KR')}</span> <span class="rf-total">${t('res.fameTotal', { n: SAVE.fame.toLocaleString('ko-KR') })}</span>`;
     unlockEl.innerHTML = '';
   }
+  // 도감에 처음 올린 동물은 명성이 붙는다. 박물 특성이 있으면 두 배.
+  if (G.animalsNew.length) {
+    const mul = (me.tr.codexFame || 1) * (me.tr.fame || 1);
+    addFame(Math.round(ANIMAL_FAME * G.animalsNew.length * mul));
+  }
+  // 11장 보상 칭호
+  if (ch && cleared && ch.reward?.title && grantTitle(ch.reward.title)) {
+    unlockEl.innerHTML += `<div class="ul-row crown"><b>🎖 ${ch.reward.title}</b><span>${t('res.titleGot')}</span></div>`;
+  }
   updateFame();
 
   const item = (label, v) => `<span>${label}<b>${v}</b></span>`;
@@ -1890,7 +1951,12 @@ function showResults() {
     `<div>${t('res.learnedLine', { e: L.events, f: L.figures.length, d: L.discoveries.length })}</div>` +
     (L.figures.length ? `<div style="margin-top:6px">${tags(L.figures, 'f')}</div>` : '') +
     (L.discoveries.length ? `<div style="margin-top:4px">${tags(L.discoveries, 'd')}</div>` : '') +
-    (verseRows ? `<h4 style="margin-top:10px">${t('res.verses', { m: allMemo, all: VERSES.length })}</h4><div class="vs-list">${verseRows}</div>` : '');
+    (verseRows ? `<h4 style="margin-top:10px">${t('res.verses', { m: allMemo, all: VERSES.length })}</h4><div class="vs-list">${verseRows}</div>` : '') +
+    (G.animalsMet.length ? `<h4 style="margin-top:10px">${t('res.animals')}</h4><div class="met-animals">` +
+      G.animalsMet.map((k) => {
+        const a = ANIMALS[k], isNew = G.animalsNew.includes(k);
+        return `<span class="${isNew ? 'fresh' : ''}">${a.emoji} ${LANG === 'en' ? a.en : a.name}${isNew ? ' · ' + t('res.animalNew') : ''}</span>`;
+      }).join('') + '</div>' : '');
   $('result-table').innerHTML = sorted.map((b) => `<tr class="${b.isPlayer ? 'me' : b.consort ? 'ally' : ''}"><td class="rank">${b.rank}</td><td><span style="color:${b.color}">${b.consort ? '▣' : '■'}</span> ${b.name}</td><td>${b.def.name}</td><td>${b.consort?.sunk ? t('res.sunk') : b.finished ? formatTime(b.finishTime) : t('res.sailing')}</td></tr>`).join('');
 
   // 다음 장 버튼은 클리어했고 다음 장이 남아 있을 때만
@@ -1907,6 +1973,226 @@ function showResults() {
     const lines = cleared ? ch.outro : ch.fail;
     if (lines && lines.length) setTimeout(() => { if (G.state === 'result') cutscene.show(lines, ch, me.name, SEL.admiral); }, 900);
   }
+}
+
+// 도감의 "해양 생물" 칸. 만난 종만 펼쳐 보여 준다.
+function buildAnimalCodex() {
+  const el = $('codex-animals'); if (!el) return;
+  const keys = Object.keys(ANIMALS);
+  const seen = SAVE.seenAnimals || [];
+  el.innerHTML = `<h4>${t('codex.animals')} <small>${seen.length} / ${keys.length}</small></h4>` +
+    '<div class="animal-grid">' + keys.map((k) => {
+      const a = ANIMALS[k], known = seen.includes(k);
+      if (!known) return `<article class="animal-card locked"><div class="an-emoji">？</div><div><b>???</b><span>${t('codex.animalLocked')}</span></div></article>`;
+      return `<article class="animal-card"><div class="an-emoji">${a.emoji}</div><div>
+        <b>${LANG === 'en' ? a.en : a.name}</b><span>${a.species}</span>
+        <p>${LANG === 'en' ? a.textEn : a.text}</p></div></article>`;
+    }).join('') + '</div>';
+}
+
+// ---------- 부캉이의 바다 ----------
+// 동물은 해치는 대상이 아니다. 여기 있는 모든 상호작용은 피하거나, 따라가거나, 곁에 있는 것이다.
+
+const ANIMAL_FAME = 40;        // 도감에 처음 올린 종 하나당 명성
+// 부캉이가 놀라기 시작하는 속도. 배마다 최고 속도가 다르므로 비율로 잡는다.
+// 느린 배를 골랐다고 쉬워지고 빠른 배를 골랐다고 불가능해지면 안 된다.
+const GUIDE_SPEED_FRAC = 0.7;
+function guideLimit(p) { return p.phys.maxSpeed * GUIDE_SPEED_FRAC; }
+
+// 종을 처음 만났다. 도감 카드를 띄우고 이번 항해의 목록에 넣는다.
+function meetAnimal(key) {
+  const a = ANIMALS[key];
+  if (!a || G.animalsMet.includes(key)) return;
+  G.animalsMet.push(key);
+  const fresh = !SAVE.seenAnimals.includes(key);
+  if (fresh) { markSeen('animal', key); G.animalsNew.push(key); }
+  hud.knowledge({
+    kind: 'animal', label: t('kc.animal'), date: a.species,
+    title: a.emoji + ' ' + (LANG === 'en' ? a.en : a.name),
+    text: LANG === 'en' ? a.textEn : a.text, dur: fresh ? 9 : 5,
+  }, fresh);
+  award(fresh ? 240 : 60, a.emoji + ' ' + (LANG === 'en' ? a.en : a.name), '#5fe0d8', () => audio.treasure());
+}
+
+// 만조와 간조. 주기적으로 물이 들고 난다.
+function updateTide(dt) {
+  const T = G.tide;
+  T.phase += dt * 0.085;                    // 한 주기 약 74초
+  T.level = (Math.sin(T.phase) + 1) / 2;
+  const wasHigh = T.high;
+  T.high = T.level > 0.72;
+  if (T.high && !wasHigh && G.chapter?.type === 'guide') hud.event(t('ev.highTide'), 2600);
+}
+
+// 동물 상호작용. 매 프레임 한 번.
+function updateWildlife(dt) {
+  const W = G.wildlife, p = G.player;
+  if (!W || !p) return;
+  G.track.setFocus(p.pos.x, p.pos.z);
+  W.update(dt, G.t, p);
+  for (const k of W.met) meetAnimal(k);
+
+  if (W.whaleSighted) {
+    W.whaleSighted = false;
+    meetAnimal('graywhale');
+    hud.event(t('ev.whale'), 3600);
+    G.camShake = Math.max(G.camShake, 0.4);
+  }
+  if (G.state !== 'racing' || p.finished) return;
+
+  // 상괭이 길잡이 — 떼를 따라가면 순풍 구간으로 안내한다
+  if (W.guiding) {
+    p.draftMul = Math.max(p.draftMul, 1.15);
+    G.guide.companionT = (G.guide.companionT || 0) + dt;
+  }
+
+  // 남방큰돌고래 — 같이 날아오르면 체공 보너스
+  if (W.jumpingDolphin && p.airborne && !G.guide.dolphinAwarded) {
+    G.guide.dolphinAwarded = true;
+    p.airVy = Math.max(p.airVy, 10);
+    award(320, t('pop.dolphinJump'), '#8fd4ff', () => audio.perfect());
+    setTimeout(() => { G.guide.dolphinAwarded = false; }, 4000);
+  }
+
+  // 바다거북 — 부딪히지 않고 지나가면 점수, 등딱지 위 금화
+  const tn = W.nearTurtle(p.pos.x, p.pos.z);
+  if (tn) {
+    if (tn.hit) {
+      if ((tn.it.cd || 0) <= 0) {
+        tn.it.cd = 3;
+        p.speed *= 0.82;
+        hud.event(t('ev.turtleBump'), 1800);
+        bumpStress(0.06);
+      }
+    } else if (!tn.it.passed) {
+      tn.it.passed = true;
+      award(180, t('pop.turtlePass'), '#7bed9f', () => audio.coin());
+    }
+  }
+  for (const it of W.pods.turtle.items) if (it.cd > 0) it.cd -= dt;
+
+  // 만타가오리 — 위를 지나면 발견 구슬이 떨어진다
+  const mt = W.overManta(p.pos.x, p.pos.z);
+  if (mt) { mt.taken = true; foundDiscovery(); }
+
+  // 노무라입깃해파리 — 이 맵의 위협. 스치면 감속과 조타 둔화.
+  const jl = W.hitJelly(p.pos.x, p.pos.z);
+  if (jl && (jl.cd || 0) <= 0) {
+    jl.cd = 2.8;
+    p.speed *= 0.7;
+    p.sting = Math.max(p.sting, 2.2);
+    hud.hitFlash();
+    hud.event(t('ev.jelly'), 2000);
+    breakCombo();
+    bumpStress(0.14);
+    audio.hit(0.5);
+  }
+  for (const it of W.pods.jelly.items) if (it.cd > 0) it.cd -= dt;
+
+  // 정어리 떼 — 천천히 앞서 달리면 떼가 따라붙는다. 유도 미션의 핵심.
+  const sh = W.shoalPos();
+  const d = Math.hypot(sh.x - p.pos.x, sh.z - p.pos.z);
+  sh.towed = d < 55 && Math.abs(p.speed) < guideLimit(p);
+
+  updateShark(dt);
+}
+
+// 스트레스를 올린다. 유도 미션에서만 뜻이 있다.
+function bumpStress(v) {
+  if (G.chapter?.type !== 'guide' || G.mode !== 'campaign') return;
+  G.guide.stress = Math.min(1, G.guide.stress + v);
+  G.mission.maxStress = Math.max(G.mission.maxStress, G.guide.stress);
+}
+
+// 부캉이: 상태머신 갱신 + 연출 + 교감
+function updateShark(dt) {
+  const sk = G.shark, p = G.player, W = G.wildlife;
+  if (!sk || !p) return;
+  const cinematics = SAVE.cinematics !== false;
+  const api = {
+    cinematics,
+    event: (text, dur) => hud.event(text, dur),
+    sound: (kind) => { if (kind === 'omen') audio.kraken(); else audio.boost(); },
+    shake: (v) => { G.camShake = Math.max(G.camShake, v); },
+    fov: (delta) => { G.fovNudge = delta; },
+    title: (name, caption) => {
+      hud.comboPop(name, caption, '#5fe0d8');
+      hud.knowledge({ kind: 'animal', label: t('kc.animal'), date: ANIMALS.bukhang.species,
+        title: '🦈 ' + (LANG === 'en' ? ANIMALS.bukhang.en : ANIMALS.bukhang.name),
+        text: LANG === 'en' ? ANIMALS.bukhang.textEn : ANIMALS.bukhang.text, dur: 10 }, true);
+    },
+    met: () => meetAnimal('bukhang'),
+    companion: () => {
+      p.turbo = Math.max(p.turbo, 10);
+      G.fx.doubleScore = Math.max(G.fx.doubleScore, 10);
+      hud.comboPop(t('pop.companion'), t('pop.companionSub'), '#ffe08a');
+      award(600, t('pop.companion'), '#ffe08a', () => audio.perfect());
+      G.camShake = Math.max(G.camShake, 0.25);
+      recordBond(1);
+    },
+  };
+  // 전조: 갈매기가 날아오르고 정어리가 몰린다
+  if (sk.state === 'omen' && !sk._omenFx) {
+    sk._omenFx = true;
+    G.track.spookGulls?.();
+    if (W) W.shoal.scatter = 1;
+  }
+  if (sk.state === 'hidden') sk._omenFx = false;
+
+  sk.update(dt, G.t, p, api);
+
+  // 동행 중에는 항적이 반짝인다
+  if (sk.companionActive && Math.random() < 0.8) {
+    const f = p.forward();
+    G.particles.spawn(p.pos.x - f.x * p.phys.radius, 0.8, p.pos.z - f.z * p.phys.radius,
+      (Math.random() - 0.5) * 6, 2 + Math.random() * 3, (Math.random() - 0.5) * 6, 0.9, 2.4, 0xffe08a, 0);
+  }
+  if (sk.bond > 0) recordBond(sk.bond);
+
+  // 유도 미션 진행
+  if (G.chapter?.type === 'guide' && G.mode === 'campaign' && !G.guide.done) {
+    const m = G.mission;
+    // 너무 빠르면 놀란다. 한 번 넘겼다고 바로 실패하지는 않고, 10초쯤 계속 몰아붙여야 게이지가 찬다.
+    const lim = guideLimit(p);
+    if (Math.abs(p.speed) > lim && sk.visibleNow) bumpStress(dt * 0.08);
+    else G.guide.stress = Math.max(0, G.guide.stress - dt * 0.12);
+    // 상괭이와 나란히 달린 시간 5초마다 한 마리씩 동행으로 친다
+    m.companions = Math.min(7, Math.floor((G.guide.companionT || 0) / 5));
+    // 만조에는 부캉이가 구조물을 넘어 되돌아갈 수 있다 — 길을 비워 줘야 한다
+    if (G.tide.high && Math.abs(p.speed) > lim * 0.8) bumpStress(dt * 0.06);
+    // 외해 표지까지 데려왔는가.
+    // 그냥 표지 옆을 지나쳤다고 성공이 아니다. 부캉이가 마음을 열어 나란히 붙었고(beside),
+    // 그 상태로 10초 넘게 따라왔고, 플레이어도 함께 표지에 있어야 한다.
+    if (sk.state === 'beside' && sk.close) G.guide.led += dt;
+    const mark = G.track.seaMark;
+    if (mark && sk.state === 'beside' && G.guide.led > 10) {
+      const dd = Math.hypot(sk.x - mark.x, sk.z - mark.z);
+      const pd = Math.hypot(p.pos.x - mark.x, p.pos.z - mark.z);
+      if (dd < mark.r + 40 && pd < mark.r + 90) {
+        G.guide.done = true; m.guided = true;
+        hud.comboPop(t('pop.guided'), t('pop.guidedSub'), '#5fe0d8');
+        award(900, t('pop.guided'), '#5fe0d8', () => audio.perfect());
+        if (!p.finished) { G.state = 'finished'; G.finishTimer = 3.4; m.finished = true; }
+      }
+    }
+    if (G.guide.stress >= 1 && !m.failed) {
+      m.failed = true; m.failReason = t('mission.failStress');
+      hud.centerMsg(t('mission.failed'), '#ff6b6b');
+      hud.event(m.failReason, 3000);
+      G.state = 'finished'; G.finishTimer = 2.4;
+    }
+  }
+
+  // 게이지 표시
+  const guiding = G.chapter?.type === 'guide' && G.mode === 'campaign';
+  hud.setBond({
+    mode: guiding ? 'stress' : 'bond',
+    value: guiding ? G.guide.stress : sk.bond,
+    note: sk.companionActive ? t('hud.companionOn', { n: Math.ceil(sk.companion) })
+        : sk.visibleNow ? t('hud.bondNear') : t('hud.bondFar'),
+    tide: guiding ? G.tide.level : null,
+    tideHigh: G.tide.high,
+  });
 }
 
 // ---------- 메인 루프 ----------
@@ -2023,7 +2309,9 @@ function step() {
       p.fleetMul = p.finished ? 1 : bonus;
       if (st === 'racing' && G.fleet.cohesion > 0.6) G.stats.fleetTime += dt;
       // 게이지가 가득 차면 한 번 크게 터뜨리고 비운다
-      if (G.fleet.meter >= 1 && st === 'racing') {
+      const quiet = G.chapter?.type === 'guide' && G.mode === 'campaign';
+      if (quiet && G.fleet.meter >= 1) G.fleet.meter = 0.9;   // 조용한 호위: 항진은 터지지 않는다
+      if (G.fleet.meter >= 1 && st === 'racing' && !quiet) {
         G.fleet.meter = 0;
         p.turbo = Math.max(p.turbo, 2.4);
         for (const c of G.fleet.alive) c.turbo = Math.max(c.turbo, 2.4);
@@ -2061,6 +2349,8 @@ function step() {
       }
       if (b.boosting && b.def.turtle) { const f = b.forward(); G.particles.spawn(b.pos.x + f.x * (b.phys.radius + 2), 2, b.pos.z + f.z * (b.phys.radius + 2), f.x * 20 + (Math.random() - 0.5) * 6, 2, f.z * 20 + (Math.random() - 0.5) * 6, 0.5, 5, 0xff7043, 0); }
     }
+    updateTide(dt);
+    updateWildlife(dt);
     handleCollisions(dt);
     for (const b of G.boats) { updateProgress(b); if (b.def.trackLock) applyTrackLock(b, dt); }
     updateRanks();

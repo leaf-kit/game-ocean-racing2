@@ -137,6 +137,9 @@ export const FIGURES = [
   { name: '페드루 알바르스 카브랄', years: '1467?~1520', text: '인도로 가던 길에 브라질을 발견했다. 함대에는 희망봉의 디아스도 타고 있었다.' },
   { name: '바스코 누녜스 데 발보아', years: '1475~1519', text: '파나마 지협을 걸어 넘어 유럽인 최초로 태평양을 본 탐험가.' },
   { name: '존 해리슨', years: '1693~1776', text: '시계 장인. 흔들리는 배에서도 정확한 크로노미터를 만들어 바다 위 경도 측정을 가능하게 했다.' },
+  { name: '장보고', years: '?~846', text: '완도에 청해진을 세우고 신라·당·일본을 잇는 바닷길을 쥐었다. 해적을 눌러 항로를 열고 그 길로 교역했다.' },
+  { name: '최부', years: '1454~1504', text: '제주에서 표류해 중국 저장성에 닿았고, 걸어서 북경을 거쳐 돌아왔다. 그 여정을 『표해록』에 적었다.' },
+  { name: '정약전', years: '1758~1816', text: '흑산도 유배 중에 바다 생물을 조사해 『자산어보』를 썼다. 이름과 생김새, 맛과 쓰임을 함께 적은 책이다.' },
 ];
 
 // ---------- 발견: 현상 / 사물 / 사건 (발견 구슬 아이템) ----------
@@ -160,6 +163,11 @@ export const DISCOVERIES = [
   { kind: '사건', name: '적도 통과 의식', text: '처음 적도를 넘는 선원을 바닷물에 빠뜨리는 전통. "넵튠 왕"이 심판을 맡았다.', effect: 'bonus', color: '#5cc8ff' },
   { kind: '사건', name: '괴혈병 창궐', text: '다 가마의 첫 항해에서 선원 170명 중 100명 이상이 괴혈병으로 죽었다.', effect: 'citrus', color: '#ffb347' },
   { kind: '사건', name: '선상 반란', text: '마젤란은 파타고니아에서 반란을 진압했다. 규율은 목숨과 직결된 문제였다.', effect: 'bonus', color: '#ff6b6b' },
+  { kind: '사건', name: '조선통신사', text: '1607년부터 1811년까지 열두 차례, 조선이 일본에 보낸 사절단. 400~500명이 부산에서 배를 타고 쓰시마를 거쳐 에도까지 갔다.', effect: 'bonus', color: '#e8c35a' },
+  { kind: '사물', name: '초량왜관', text: '조선 후기 부산에 둔 일본과의 교역 거류지. 1678년 초량으로 옮겼다. 조선에서 일본인이 머물 수 있는 유일한 곳이었다.', effect: 'bonus', color: '#c8a06a' },
+  { kind: '사물', name: '자산어보', text: '정약전이 흑산도 유배 중에 쓴 해양생물 기록. 물고기와 조개와 해초의 이름, 생김새, 맛과 쓰임을 적었다.', effect: 'bonus', color: '#5fe0d8' },
+  { kind: '사물', name: '오륙도', text: '부산 앞바다의 바위섬. 보는 방향과 물때에 따라 다섯으로도 여섯으로도 보인다 하여 붙은 이름이다.', effect: 'bonus', color: '#8fbf6a' },
+  { kind: '자연현상', name: '대마난류', text: '쿠로시오에서 갈라져 대한해협으로 올라오는 따뜻한 해류. 남쪽 바다의 물고기를 한국 연안까지 실어 온다.', effect: 'current', color: '#5cc8ff' },
 ];
 
 // ---------- 맵별 항로 (우측 상단 지도용): 각 14곳, 체크포인트와 1:1 ----------
@@ -245,6 +253,23 @@ export const MAP_ROUTES = {
     { name: '쓰시마', en: 'Tsushima', lon: 129.3, lat: 34.4, year: '1419', region: '대마도', regionEn: 'Tsushima', fact: '조선과 일본 사이의 다리. 이종무의 정벌과 통신사가 오간 섬.', factEn: 'Bridge between Korea and Japan: Yi Jong-mu\'s expedition and the Joseon envoys passed here.' },
     { name: '울산', en: 'Ulsan', lon: 129.4, lat: 35.5, year: '1598', region: '경상도', regionEn: 'Gyeongsang', fact: '정유재란 울산성 전투의 항구. 오늘날 조선(造船)의 도시.', factEn: 'Port of the siege of Ulsan; today a city of shipbuilding.' },
   ] },
+  // 부캉이의 바다 — 부산 한 도시 안을 돈다. 기항지 열넷이 전부 부산의 바다다.
+  bukhang: { bounds: [128.78, 129.24, 34.98, 35.22], coasts: 'busan', ports: [
+    { name: '북항', en: 'Bukhang', lon: 129.045, lat: 35.112, year: '1876', region: '부산항', regionEn: 'Port of Busan', fact: '1876년 조일수호조규로 조선에서 가장 먼저 열린 개항장.', factEn: 'The first port Joseon opened to foreign trade, in 1876.' },
+    { name: '초량왜관', en: 'Choryang Waegwan', lon: 129.038, lat: 35.118, year: '1678', region: '동구', regionEn: 'Dong-gu', fact: '조선 후기 일본과의 교역 거류지. 1678년 초량으로 옮겨 왔다.', factEn: 'The late-Joseon Japanese trading quarter, moved to Choryang in 1678.' },
+    { name: '영도대교', en: 'Yeongdo Bridge', lon: 129.035, lat: 35.096, year: '1934', region: '영도', regionEn: 'Yeongdo', fact: '1934년에 놓인 들어 올리는 다리. 섬의 옛 이름은 절영도다.', factEn: 'A bascule bridge opened in 1934. The island was once called Jeollyeongdo.' },
+    { name: '자갈치', en: 'Jagalchi', lon: 129.031, lat: 35.097, year: '1924', region: '중구', regionEn: 'Jung-gu', fact: '자갈이 깔린 바닷가라는 이름에서 왔다. 부산을 대표하는 어시장.', factEn: 'Named for its pebbled shore; the fish market that stands for Busan.' },
+    { name: '송도', en: 'Songdo', lon: 129.016, lat: 35.075, year: '1913', region: '서구', regionEn: 'Seo-gu', fact: '1913년에 문을 연 한국 최초의 공설 해수욕장.', factEn: 'Korea\'s first public bathing beach, opened in 1913.' },
+    { name: '다대포', en: 'Dadaepo', lon: 128.966, lat: 35.046, year: '1592', region: '사하구', regionEn: 'Saha-gu', fact: '임진왜란 개전 직후 윤흥신이 지키다 전사한 수군 진이 있던 곳.', factEn: 'Site of the naval garrison where Yun Heung-sin fell at the outbreak of the Imjin War.' },
+    { name: '몰운대', en: 'Morundae', lon: 128.963, lat: 35.038, year: '1592', region: '다대포', regionEn: 'Dadaepo', fact: '부산포 해전에서 전사한 정운 장군을 기리는 비가 서 있다.', factEn: 'A stele here honours General Jeong Un, killed at the Battle of Busanpo.' },
+    { name: '가덕도', en: 'Gadeokdo', lon: 128.82, lat: 35.02, year: '1544', region: '강서구', regionEn: 'Gangseo-gu', fact: '왜구를 막으려 가덕진과 천성진을 둔 섬. 부산 서쪽 바다의 문이다.', factEn: 'Island fortified against pirate raids; the western gate of Busan\'s waters.' },
+    { name: '태종대', en: 'Taejongdae', lon: 129.087, lat: 35.052, year: '전설', region: '영도', regionEn: 'Yeongdo', fact: '신라 태종무열왕이 활을 쏜 곳이라는 전설에서 이름을 얻었다.', factEn: 'Named from a legend that King Taejong Muyeol of Silla shot arrows here.' },
+    { name: '오륙도', en: 'Oryukdo', lon: 129.125, lat: 35.095, year: '1972', region: '남구', regionEn: 'Nam-gu', fact: '보는 방향과 물때에 따라 다섯으로도 여섯으로도 보인다. 부산의 관문.', factEn: 'Five islets or six, depending on the tide and where you stand. The gateway to Busan.' },
+    { name: '이기대', en: 'Igidae', lon: 129.125, lat: 35.125, year: '1592', region: '남구', regionEn: 'Nam-gu', fact: '두 기생이 왜장을 안고 바다로 떨어졌다는 전설이 전하는 해안 절벽.', factEn: 'A coastal cliff carrying a legend of two gisaeng who leapt into the sea with a Japanese general.' },
+    { name: '광안리', en: 'Gwangalli', lon: 129.118, lat: 35.153, year: '2003', region: '수영구', regionEn: 'Suyeong-gu', fact: '2003년 광안대교가 개통하며 바다 위에 다리 하나가 더 생겼다.', factEn: 'The Gwangan Bridge opened across this bay in 2003.' },
+    { name: '동백섬', en: 'Dongbaekseom', lon: 129.148, lat: 35.153, year: '신라', region: '해운대', regionEn: 'Haeundae', fact: '본래 섬이었다가 모래가 쌓여 뭍과 이어졌다. 동백나무가 많아 붙은 이름.', factEn: 'Once an island, joined to the shore by silt. Named for its camellias.' },
+    { name: '해운대', en: 'Haeundae', lon: 129.16, lat: 35.158, year: '9세기', region: '해운대구', regionEn: 'Haeundae-gu', fact: '최치원이 자신의 호 "해운"을 바위에 새겼다는 데서 이름이 왔다고 전한다.', factEn: 'Said to be named after Choe Chi-won, who carved his pen name "Haeun" on a rock here.' },
+  ] },
 };
 
 // ---------- 확대 지도용 상세 해안선 (지중해, 한일해협) ----------
@@ -257,6 +282,16 @@ export const REGION_COASTS = {
     // 시칠리아 / 사르데냐 / 코르시카 / 크레타 / 키프로스 / 마요르카 / 몰타
     [[12.4,38],[15.6,38.2],[15.1,36.7],[12.5,37.5]], [[8.2,41],[9.7,41],[9.6,39],[8.4,39]], [[8.6,43],[9.5,42.8],[9.2,41.4],[8.7,41.6]],
     [[23.5,35.3],[26.3,35.3],[26,35],[24,35]], [[32.3,35],[34.6,35.6],[34,34.6],[32.5,34.7]], [[2.4,39.6],[3.4,39.9],[3.1,39.3],[2.5,39.5]], [[14.3,36],[14.6,36],[14.5,35.8]],
+  ],
+  busan: [
+    // 부산 해안선 — 낙동강 하구에서 해운대까지
+    [[128.78,35.22],[128.80,35.08],[128.85,35.02],[128.92,35.00],[128.96,35.04],[128.99,35.06],[129.00,35.09],[129.03,35.10],[129.06,35.12],[129.08,35.15],[129.11,35.14],[129.13,35.13],[129.14,35.16],[129.19,35.17],[129.24,35.19],[129.24,35.22]],
+    // 영도
+    [[129.02,35.10],[129.09,35.09],[129.09,35.05],[129.04,35.05],[129.02,35.08]],
+    // 가덕도
+    [[128.80,35.05],[128.85,35.05],[128.85,34.99],[128.80,35.00]],
+    // 오륙도
+    [[129.12,35.10],[129.13,35.10],[129.13,35.09],[129.12,35.09]],
   ],
   strait: [
     // 한반도 남부

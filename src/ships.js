@@ -218,6 +218,14 @@ export const SHIPS = [
     stats: { speed: 7, accel: 9, handling: 7, durability: 6 },
     windSens: 0.06, boostRegen: 1.5, cannonCooldown: 5.5, hullColor: 0x2a2a2a, sailColor: 0xf5efe0, masts: 1, length: 14, stripe: 0xc9a55a, oars: true, spinResist: 0.3,
   },
+  {
+    id: 'tongsinsa', cat: 'sail', name: '조선통신사선', en: 'Joseon Envoy Ship', nation: '조선',
+    desc: '조선이 일본에 보낸 사절단이 타던 배. 1607년부터 1811년까지 열두 차례, 부산에서 쓰시마를 거쳐 에도까지 갔다. 가장 큰 정사기선은 사람 백여 명을 실었다.',
+    special: '특성: 사행길 — 보급품 효과 1.6배, 항로 이탈 감속 절반, 순풍 보너스 1.2배',
+    stats: { speed: 7, accel: 6, handling: 7, durability: 8 },
+    windSens: 0.33, boostRegen: 1.3, cannonCooldown: 5.5, hullColor: 0x6b4423, sailColor: 0xf2e6cb, masts: 2, length: 15, stripe: 0x1f5f8b,
+    pickupBonus: 1.6, offCourseMul: 0.5, tailwindMul: 1.2,
+  },
   // ---------------- 특수선: 거북선 · 대한민국 함대 · 현대 초고속정 ----------------
   {
     id: 'turtle', cat: 'special', name: '거북선', en: 'Turtle Ship', nation: '조선', legend: true, aiExclude: true,

@@ -1,7 +1,7 @@
 // 함선 상태 및 물리
 import * as THREE from 'three';
-import { derivePhysics } from './ships.js?v=20261003a';
-import { waveHeight, waveNormal, SEA } from './ocean.js?v=20261003a';
+import { derivePhysics } from './ships.js?v=20261004a';
+import { waveHeight, waveNormal, SEA } from './ocean.js?v=20261004a';
 
 const _n = new THREE.Vector3();
 
@@ -24,6 +24,7 @@ export class Boat {
     this.cannonCd = 0;
     this.cannonMax = this.phys.cannonCooldown; // 실제로 쓰인 재장전 시간 (HUD 게이지 기준)
     this.stun = 0;       // 피격/충돌 후 감속
+    this.sting = 0;      // 해파리에 쏘인 뒤 조타가 둔해지는 시간
     this.whirl = 0;      // 소용돌이 영향
     this.whirlTime = 0;  // 소용돌이 체류 시간
     this.whirlImmune = 0; // 탈출 직후 면역
@@ -114,6 +115,7 @@ export class Boat {
     this.time += dt;
     if (this.cannonCd > 0) this.cannonCd -= dt;
     if (this.stun > 0) this.stun -= dt;
+    if (this.sting > 0) this.sting -= dt;
     if (this.warpCd > 0) this.warpCd -= dt;
     // 코스터를 도는 동안에는 물리 대신 정해진 궤도를 탄다
     if (this.loop) { if (this.rampCd > 0) this.rampCd -= dt; this._updateLoop(dt, t); return; }
@@ -150,7 +152,8 @@ export class Boat {
     // 조타 (속도가 있어야 잘 돔)
     const turnEff = THREE.MathUtils.clamp(Math.abs(this.speed) / (P.maxSpeed * 0.3), 0.2, 1);
     // 키 입력(0/1)을 완만하게 보간해 뱃머리가 스르르 돌아가게
-    this.steerS += (this.steer - this.steerS) * Math.min(1, 5 * dt);
+    // 해파리에 쏘이면 키가 늦게 먹는다
+    this.steerS += (this.steer - this.steerS) * Math.min(1, (this.sting > 0 ? 1.7 : 5) * dt);
     const turn = this.steerS * P.turnRate * turnEff;
     this.heading += (turn + this.spin) * dt;
     this.spin *= Math.exp(-2.5 * dt);

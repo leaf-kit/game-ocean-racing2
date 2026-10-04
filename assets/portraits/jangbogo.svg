@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320" role="img">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2b3c"/><stop offset="1" stop-color="#0d1722"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" fill="url(#bg)"/>
+  <circle cx="160" cy="150" r="96" fill="none" stroke="#3b5570" stroke-width="2"/>
+  <!-- 어깨와 머리: 얼굴을 그리지 않는다. 전해지는 초상이 없기 때문이다. -->
+  <path d="M160 92a30 30 0 1 1 0 60 30 30 0 0 1 0-60z" fill="#8fa8bd" opacity="0.85"/>
+  <path d="M104 226c6-34 28-52 56-52s50 18 56 52z" fill="#8fa8bd" opacity="0.85"/>
+  <g stroke="#ffd166" stroke-width="3" fill="none" opacity="0.9">
+    <path d="M66 206V140l44 66z"/>
+    <path d="M254 206V140l-44 66z"/>
+    <path d="M54 214h212"/>
+  </g>
+  <text x="160" y="296" text-anchor="middle" font-family="serif" font-size="26" fill="#6e8aa6">張保皐</text>
+</svg>

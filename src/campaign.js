@@ -6,6 +6,7 @@
 //   pursuit  목표 함선을 n번 명중시키기
 //   treasure 금화·보물을 n점어치 거두고 완주
 //   duel     일대일. 상대를 n번 명중시켜 무력화
+//   guide    유도. 겁주지 않고 동물을 목표 지점까지 데려온다 (포격 비활성)
 
 export const MISSION_TYPES = {
   race:     { icon: '🏁', name: '경주',   color: '#ffe08a' },
@@ -14,6 +15,7 @@ export const MISSION_TYPES = {
   pursuit:  { icon: '🎯', name: '추격',   color: '#ff9a3c' },
   treasure: { icon: '🪙', name: '보물',   color: '#ffd54f' },
   duel:     { icon: '⚔', name: '결투',   color: '#d08ad8' },
+  guide:    { icon: '🦈', name: '유도',   color: '#5fe0d8' },
 };
 
 // line: { who: 인물 id | 'me' | null, text }
@@ -209,6 +211,30 @@ export const CHAPTERS = [
     fail: [{ who: 'elcano', text: '한 바퀴가 아니라 세 바퀴요. 체력을 남겨 두시오.' }],
     tip: '긴 승부다. 전속 항해 게이지를 아꼈다가 마지막 랩 직선에서 몰아 써라.',
   },
+  {
+    id: 10, act: '제11장', title: '부캉이', subtitle: '2026년 가을 · 부산 북항 친수공원',
+    map: 'bukhang', laps: 1, time: 'sunset', type: 'guide',
+    goal: { guided: 1 }, sGoal: { guided: 1, stress: 0.4, companions: 3, time: 260 },
+    rivals: 0, consorts: 4,
+    ship: null, fame: 1100,
+    reward: { figure: 'jeongyakjeon', ship: 'tongsinsa', title: '부산 명예 홍보대사' },
+    intro: [
+      { who: 'yi', text: '이 물길은 내가 알던 바다가 아니오. 다리가 여섯이고 쇠로 된 산이 서 있군.' },
+      { who: 'yi', text: '그런데 사람들이 전부 난간에 붙어 아래를 보고 있소. 무엇이 있소?' },
+      { who: 'me', text: '상어입니다. 보름이 넘도록 저 수로를 안 떠나고 있습니다.' },
+      { who: 'yi', text: '…쫓지 마시오. 물줄기로 밀고 그물로 몰면 겁을 먹고 더 깊이 들어가오.' },
+      { who: 'yi', text: '정어리를 끌고 앞서 가시오. 천천히. 따라오게 하는 것이지 몰아내는 것이 아니오.' },
+    ],
+    outro: [
+      { who: 'yi', text: '나갔소. 제 발로.' },
+      { who: 'jeongyakjeon', text: '잘 보셨소. 이제 적으시오 — 언제, 어디서, 어떻게 생긴 것을 보았는지.' },
+      { who: 'jeongyakjeon', text: '나는 흑산도에서 열다섯 해 동안 그것만 했소. 이름을 붙여 적어 두지 않으면, 본 것도 못 본 것이 되오.' },
+      { who: 'me', text: '…도감을 주시는 겁니까.' },
+      { who: 'jeongyakjeon', text: '자산어보라 하오. 당신이 이어 쓰시오.' },
+    ],
+    fail: [{ who: 'yi', text: '서둘렀소. 저 녀석은 뒤에서 미는 배를 믿지 않소. 다시 하시오.' }],
+    tip: '속도를 낮게 유지하라. 빠르면 부캉이가 놀라 수로 안쪽으로 되돌아간다. 해파리와 충돌은 스트레스를 올린다. 포격은 이 미션에서 꺼져 있다.',
+  },
 ];
 
 export const chapterCount = CHAPTERS.length;
@@ -224,13 +250,25 @@ export function goalText(ch, goal = ch.goal) {
     case 'pursuit':  return `라이벌 함선에 ${g.hits}발 명중`;
     case 'treasure': return `보물 ${g.treasure.toLocaleString('ko-KR')}점 수집 후 완주`;
     case 'duel':     return `상대에게 ${g.hits}발 명중${g.time ? ` · ${g.time}초 안에` : ''}`;
+    case 'guide':    return g.companions
+      ? `부캉이를 외해 표지까지 유도 · 스트레스 ${Math.round(g.stress * 100)}% 이하 · 상괭이 ${g.companions}마리 동행`
+      : '부캉이를 겁주지 말고 외해 표지까지 유도';
     default:         return '완주';
   }
 }
 
-// 미션 달성 여부. m = 진행 상황 { hits, treasure, aliveConsorts, survived, rank, time, finished }
+// 미션 달성 여부. m = 진행 상황 { hits, treasure, aliveConsorts, survived, rank, time, finished,
+//                              guided, maxStress, companions }
 export function meets(ch, g, m) {
   if (!g) return false;
+  // 유도 미션: 완주가 아니라 '데려다 놓았는가'로 판정한다
+  if (g.guided != null) {
+    if (!m.guided) return false;
+    if (g.stress != null && m.maxStress > g.stress) return false;
+    if (g.companions != null && m.companions < g.companions) return false;
+    if (g.time != null && m.time > g.time) return false;
+    return true;
+  }
   if (g.rank != null && !(m.finished && m.rank <= g.rank)) return false;
   if (g.alive != null && m.aliveConsorts < g.alive) return false;
   if (g.hits != null && m.hits < g.hits) return false;

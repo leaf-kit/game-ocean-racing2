@@ -1,5 +1,5 @@
 // 맵 정의: 항로 모양, 섬 스타일, 물빛, 폭풍 빈도, 소용돌이 등장 시점
-// points: 항로 제어점 [x, z] (스케일 적용 전). style: tropical 열대섬 / atoll 환초 / rocky 절벽섬 / ice 빙산 / coast 해안 절벽
+// points: 항로 제어점 [x, z] (스케일 적용 전). style: tropical 열대섬 / atoll 환초 / rocky 절벽섬 / ice 빙산 / coast 해안 절벽 / harbor 항구 수로
 export const MAPS = [
   {
     id: 'caribbean', name: '카리브 군도', en: 'Caribbean Isles',
@@ -36,6 +36,25 @@ export const MAPS = [
     desc: '명량의 물살처럼 소용돌이가 도는 좁은 해협. 절벽 해안 사이를 달린다.', descEn: 'A narrow strait of racing tides and whirlpools, like Myeongnyang. Cliffs on both sides.',
     scale: 0.8, style: 'coast', storm: 0.9, whirl: [0.15, 0.4, 0.65], kraken: 0.9, tint: { deep: 0x0b3556, shallow: 0x2d95bd },
     points: [[0, 0], [340, 20], [520, 200], [700, 260], [820, 480], [600, 620], [320, 520], [60, 640], [-240, 720], [-520, 560], [-620, 300], [-460, 60], [-260, -120], [-120, -40]],
+  },
+  {
+    id: 'bukhang', name: '부캉이의 바다', en: 'Bukhang Waterway',
+    desc: '수로 위 다리 밑을 달린다. 수면 아래엔 누군가 있다.',
+    descEn: 'Race under six footbridges. Something is moving below the surface.',
+    // 항구는 폭풍이 거의 없고(방파제 안쪽), 크라켄도 없다. 이 맵의 위협은 해파리다.
+    scale: 0.8, style: 'harbor', storm: 0.3, whirl: [0.5, 2, 2], kraken: 2,
+    tint: { deep: 0x0b3b46, shallow: 0x2a9ea0 },   // 항구의 탁한 청록
+    fog: 0.9, city: true, wildlife: true,
+    // canal: 좁은 경관수로 구간 (진행률). 다리 여섯과 해파리가 이 안에 있다.
+    canal: [0.40, 0.74],
+    // 외해 → 방파제 → 북항 입구 → 수로(직선에 가깝다) → 광장 호수 → 외해로 복귀
+    points: [
+      [0, 0], [330, -50], [640, 30], [860, 250],
+      [930, 520], [800, 720],
+      [540, 800], [270, 820], [0, 820], [-270, 810],
+      [-540, 770], [-760, 640],
+      [-880, 400], [-840, 140], [-650, -70], [-350, -140], [-140, -70],
+    ],
   },
 ];
 export const DEFAULT_MAP = MAPS[0];

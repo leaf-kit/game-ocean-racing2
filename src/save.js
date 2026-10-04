@@ -4,7 +4,7 @@
 const KEY = 'aos2_save';
 
 const DEFAULTS = {
-  v: 1,
+  v: 2,
   name: '',            // 제독 이름
   admiral: 'henry',    // 기함 제독으로 고른 인물
   fame: 0,             // 누적 명성
@@ -20,14 +20,32 @@ const DEFAULTS = {
   seenDiscoveries: [],
   lang: 'ko',
   freeplay: false,     // 자유 항해 해금 (프롤로그 클리어 시)
+  freeMap: 'caribbean',// 자유 항해에서 마지막으로 고른 맵
+  // --- v2: 부캉이의 바다 ---
+  seenAnimals: [],     // 동물 도감에 등록된 종 (wildlife.js 의 ANIMALS 키)
+  bestBond: 0,         // 교감 게이지 최고 기록 (0~1)
+  titles: [],          // 얻은 칭호
+  cinematics: true,    // 등장 연출 재생 여부 (저사양·접근성용)
 };
+
+// 구버전 세이브 올리기.
+// v1 에는 위의 v2 칸들이 없다. read() 가 DEFAULTS 와 병합하므로 값은 이미 채워지지만,
+// 배열과 객체는 참조를 나눠 쓰지 않도록 여기서 한 번 더 복사한다.
+function migrate(d) {
+  if (!Array.isArray(d.seenAnimals)) d.seenAnimals = [];
+  if (!Array.isArray(d.titles)) d.titles = [];
+  if (typeof d.bestBond !== 'number') d.bestBond = 0;
+  if (typeof d.cinematics !== 'boolean') d.cinematics = true;
+  d.v = DEFAULTS.v;
+  return d;
+}
 
 function read() {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...DEFAULTS };
     const d = JSON.parse(raw);
-    return { ...DEFAULTS, ...d, bestRank: { ...d.bestRank }, bestTime: { ...d.bestTime }, verses: { ...d.verses } };
+    return migrate({ ...DEFAULTS, ...d, bestRank: { ...d.bestRank }, bestTime: { ...d.bestTime }, verses: { ...d.verses } });
   } catch (_) { return { ...DEFAULTS }; }
 }
 
@@ -58,7 +76,7 @@ export function recordChapter(id, rank, time, cleared) {
 export function isUnlocked(fameCost) { return SAVE.fame >= fameCost; }
 
 export function markSeen(kind, name) {
-  const list = kind === 'figure' ? SAVE.seenFigures : SAVE.seenDiscoveries;
+  const list = kind === 'figure' ? SAVE.seenFigures : kind === 'animal' ? SAVE.seenAnimals : SAVE.seenDiscoveries;
   if (!list.includes(name)) { list.push(name); persist(); return true; }
   return false;
 }
@@ -70,7 +88,19 @@ export function meetVerse(id) {
   return SAVE.verses[id];
 }
 
+// 교감 최고 기록. 갱신됐으면 true.
+export function recordBond(v) {
+  if (v <= SAVE.bestBond) return false;
+  SAVE.bestBond = v; persist(); return true;
+}
+
+// 칭호를 얻는다. 처음 얻은 것이면 true.
+export function grantTitle(name) {
+  if (!name || SAVE.titles.includes(name)) return false;
+  SAVE.titles.push(name); persist(); return true;
+}
+
 export function resetSave() {
   try { localStorage.removeItem(KEY); } catch (_) { /* 무시 */ }
-  Object.assign(SAVE, DEFAULTS, { bestRank: {}, bestTime: {}, officers: [], verses: {}, seenFigures: [], seenDiscoveries: [] });
+  Object.assign(SAVE, DEFAULTS, { bestRank: {}, bestTime: {}, officers: [], verses: {}, seenFigures: [], seenDiscoveries: [], seenAnimals: [], titles: [] });
 }

@@ -1,8 +1,8 @@
 // 함대: 기함 + 동료함 최대 3척. 진형을 유지하면 함대 항진 보너스가 쌓이고,
 // 1·2·3 키로 돌격 / 방패 / 산개 명령을 내린다. 동료함은 내구가 닳고, 0이 되면 대파한다.
 import * as THREE from 'three';
-import { TRACK_HALF_WIDTH } from './track.js?v=20261003a';
-import { TRAITS, findFigure } from './figures.js?v=20261003a';
+import { TRACK_HALF_WIDTH } from './track.js?v=20261004a';
+import { TRAITS, findFigure } from './figures.js?v=20261004a';
 
 // 진형: 기함 기준 오프셋. back 양수 = 뒤, side 양수 = 우현.
 // 동료함이 최대 9척까지 늘어나므로 자리를 고정 목록이 아니라 계산으로 만든다.
@@ -83,7 +83,8 @@ const angleDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= Math.PI * 
 // 함선에 특성 배수 칸을 만든다 (없으면 기본값 1)
 export function freshTraits() {
   return { headwind: 1, tailwind: 1, boostRegen: 1, storm: 1, collision: 1, offCourse: 1,
-           pickup: 1, cannonCd: 1, cannonDmg: 1, score: 1, fame: 1, cohesion: 1, plunder: 0, whirlOut: 1, foresight: false };
+           pickup: 1, cannonCd: 1, cannonDmg: 1, score: 1, fame: 1, cohesion: 1, plunder: 0, whirlOut: 1, foresight: false,
+           codexFame: 1, bond: 1 };
 }
 
 // 부제독 특성을 기함(과 동료함)에 반영한다. officers = 인물 id 배열
@@ -104,6 +105,8 @@ export function applyOfficerTraits(boat, officerIds) {
       case 'patron':        tr.fame *= 1.3; break;
       case 'cartographer':  tr.score *= 1.15; tr.foresight = true; break;
       case 'corsair':       tr.plunder += 0.35; break;
+      case 'trader':        tr.score *= 1.35; break;
+      case 'naturalist':    tr.codexFame = (tr.codexFame || 1) * 2; tr.bond = (tr.bond || 1) * 1.4; break;
     }
   }
   boat.tr = tr;

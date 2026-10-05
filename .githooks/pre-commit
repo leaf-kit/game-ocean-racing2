@@ -1,0 +1,8 @@
+#!/bin/sh
+# 커밋할 때마다 JS·CSS 주소의 ?v= 캐시 버전을 새로 찍는다 (tools/stamp-version.sh).
+# 켜기: tools/setup-hooks.sh  (한 번만)
+# 이번 커밋만 건너뛰기: SKIP_STAMP=1 git commit ...
+[ "$SKIP_STAMP" = 1 ] && exit 0
+# 게임 파일(index.html, src/)이 바뀐 커밋에만 찍는다. README 만 고친 커밋은 버전을 올리지 않는다.
+git diff --cached --name-only --diff-filter=ACMR | grep -qE '^(index\.html|src/)' || exit 0
+exec "$(git rev-parse --show-toplevel)/tools/stamp-version.sh" --staged

@@ -408,6 +408,22 @@
 
 브라우저에서 `http://localhost:8000` 을 엽니다. (WebGL 필요, three.js는 CDN에서 불러옵니다)
 
+### 캐시 버전 (`?v=`)
+
+`index.html` 과 `src/` 의 JS·CSS 는 서로를 `./main.js?v=20261005143012` 처럼 버전을 붙여 부릅니다.
+주소가 바뀌어야 브라우저와 GitHub Pages 가 예전 파일 대신 새 파일을 받아 가기 때문입니다.
+이 값은 손으로 고치지 않습니다. 커밋할 때마다 git 훅이 지금 시각으로 새로 찍습니다.
+
+```bash
+tools/setup-hooks.sh          # 클론한 뒤 한 번만 — 커밋마다 ?v= 를 새로 찍는 훅을 켭니다
+tools/stamp-version.sh        # 손으로 바로 찍기 (값을 주면 그 값으로: tools/stamp-version.sh 20261005a)
+SKIP_STAMP=1 git commit ...   # 이번 커밋만 건너뛰기
+```
+
+- 게임 파일(`index.html`, `src/`)이 바뀐 커밋에만 찍습니다. README 만 고친 커밋은 그대로 둡니다.
+- 새 파일을 `import './foo.js'` 처럼 버전 없이 불러도, 커밋할 때 `?v=` 가 붙습니다.
+- GitHub 웹 편집기처럼 훅이 돌지 않는 곳에서 커밋했다면 `tools/stamp-version.sh` 를 실행해 다시 커밋하세요.
+
 ---
 
 ## 맵

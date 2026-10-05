@@ -1,5 +1,5 @@
 // 역사 인물 22명: 실제 초상화(위키미디어 공용)와 함대 특성
-import { LANG } from './i18n.js?v=20261005104532';
+import { LANG } from './i18n.js?v=20261005112415';
 // portrait: assets/portraits/<id>.jpg (320px), <id>_s.jpg (96px 배지용)
 // trait: 함대에 배치했을 때 적용되는 특성. 자세한 계산은 fleet.js의 applyOfficerTraits 참고.
 // rank: 영입에 필요한 명성 (0이면 처음부터 사용 가능)

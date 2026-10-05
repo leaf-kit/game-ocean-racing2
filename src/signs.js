@@ -5,8 +5,8 @@
 //   3. 거리 표지   다음 기항지 직전. 입항까지 남은 거리와 이번 바퀴에 남은 전체 거리.
 // 표지는 모두 가드 로프 바깥에 서므로 배가 부딪힐 일은 없다.
 import * as THREE from 'three';
-import { LANG } from './i18n.js?v=20261005104532';
-import { buildLandmark, resetLandmarkCache } from './landmarks.js?v=20261005104532';
+import { LANG } from './i18n.js?v=20261005112415';
+import { buildLandmark, resetLandmarkCache } from './landmarks.js?v=20261005112415';
 
 const en = () => LANG === 'en';
 export const portName = (p) => (en() && p.en) ? p.en : p.name;

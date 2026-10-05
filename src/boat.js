@@ -1,7 +1,7 @@
 // 함선 상태 및 물리
 import * as THREE from 'three';
-import { derivePhysics } from './ships.js?v=20261005104532';
-import { waveHeight, waveNormal, SEA } from './ocean.js?v=20261005104532';
+import { derivePhysics } from './ships.js?v=20261005112415';
+import { waveHeight, waveNormal, SEA } from './ocean.js?v=20261005112415';
 
 // 잠수 (부캉이)
 const DIVE_DEPTH = 4.2;      // 수면 아래로 내려가는 깊이

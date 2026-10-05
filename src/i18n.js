@@ -1,7 +1,7 @@
 // 언어 설정 (한국어 기본, 영어 선택). 정적 HTML은 data-i18n 속성으로, 동적 문자열은 t()로, 데이터는 applyEnglishData()로 바꾼다.
-import { PORTS, TRIVIA, EVENTS, FIGURES, DISCOVERIES } from './history.js?v=20261005104532';
-import { SHIPS, SHIP_CATEGORIES, AI_NAMES } from './ships.js?v=20261005104532';
-import { EN_DATA } from './i18n-data.js?v=20261005104532';
+import { PORTS, TRIVIA, EVENTS, FIGURES, DISCOVERIES } from './history.js?v=20261005112415';
+import { SHIPS, SHIP_CATEGORIES, AI_NAMES } from './ships.js?v=20261005112415';
+import { EN_DATA } from './i18n-data.js?v=20261005112415';
 
 export const LANG = (() => { try { return localStorage.getItem('hr_lang') || 'ko'; } catch (_) { return 'ko'; } })();
 export function setLang(l) { try { localStorage.setItem('hr_lang', l); } catch (_) { /* 무시 */ } location.reload(); }

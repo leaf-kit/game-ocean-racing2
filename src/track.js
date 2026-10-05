@@ -1,7 +1,7 @@
 // 레이스 코스: 항로, 체크포인트, 섬, 암초, 소용돌이, 보급품, 크라켄
 import * as THREE from 'three';
-import { waveHeight } from './ocean.js?v=20261005104532';
-import { DEFAULT_MAP } from './maps.js?v=20261005104532';
+import { waveHeight } from './ocean.js?v=20261005112415';
+import { DEFAULT_MAP } from './maps.js?v=20261005112415';
 
 // 시드 난수
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }

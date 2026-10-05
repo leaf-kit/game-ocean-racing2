@@ -1,28 +1,28 @@
 // 대항해시대 레이싱 - 메인 게임 루프
 import * as THREE from 'three';
-import { SHIPS, SHIP_CATEGORIES, AI_NAMES, buildShipMesh, renderShipPreview, pickAiName } from './ships.js?v=20261005104532';
-import { Environment, TIME_PRESETS, waveHeight, SEA } from './ocean.js?v=20261005104532';
-import { Track, TRACK_HALF_WIDTH, GUARD_OFFSET, CHECKPOINT_COUNT } from './track.js?v=20261005104532';
-import { Boat } from './boat.js?v=20261005104532';
-import { aiControl, difficultyParams } from './ai.js?v=20261005104532';
-import { HUD, formatTime } from './hud.js?v=20261005104532';
-import { Particles, Seagulls, Wakes } from './effects.js?v=20261005104532';
-import { AudioManager } from './audio.js?v=20261005104532';
-import { PORTS, TRIVIA, EVENTS, FIGURES as HIST_FIGURES, DISCOVERIES, MAP_ROUTES } from './history.js?v=20261005104532';
-import { WORLD_ROUTE } from './worldmap.js?v=20261005104532';
-import { t, LANG, setLang, applyStaticI18n, applyEnglishData, ordinal } from './i18n.js?v=20261005104532';
-import { MAPS, DEFAULT_MAP, findMap } from './maps.js?v=20261005104532';
-import { FIGURES, TRAITS, findFigure, portraitSrc, figName } from './figures.js?v=20261005104532';
-import { Fleet, FORMATION_LIST, findFormation, SPACING_LIST, findSpacing, formationDepth, MAX_CONSORTS, ORDERS, applyOfficerTraits, freshTraits } from './fleet.js?v=20261005104532';
-import { CHAPTERS, findChapter, chapterCount, MISSION_TYPES, goalText, meets, gradeOf, GRADE_COLOR } from './campaign.js?v=20261005104532';
-import { SAVE, persist, addFame, recordChapter, markSeen, meetVerse, recordBond, grantTitle } from './save.js?v=20261005104532';
-import { QUOTES as VERSES, findQuote as findVerse, stageOf, blankOut, MEMORIZED_AT } from './quotes.js?v=20261005104532';
-import { Cutscene } from './story.js?v=20261005104532';
-import { Wildlife, ANIMALS } from './wildlife.js?v=20261005104532';
-import { Bukhang, BOND_FULL } from './bukhang.js?v=20261005104532';
-import { buildSigns, locationAt, fmtKm, portName } from './signs.js?v=20261005104532';
-import { Duel } from './duel.js?v=20261005104532';
-import { Boarding, DUEL_FIG, fighterOf } from './boarding.js?v=20261005104532';
+import { SHIPS, SHIP_CATEGORIES, AI_NAMES, buildShipMesh, renderShipPreview, pickAiName } from './ships.js?v=20261005112415';
+import { Environment, TIME_PRESETS, waveHeight, SEA } from './ocean.js?v=20261005112415';
+import { Track, TRACK_HALF_WIDTH, GUARD_OFFSET, CHECKPOINT_COUNT } from './track.js?v=20261005112415';
+import { Boat } from './boat.js?v=20261005112415';
+import { aiControl, difficultyParams } from './ai.js?v=20261005112415';
+import { HUD, formatTime } from './hud.js?v=20261005112415';
+import { Particles, Seagulls, Wakes } from './effects.js?v=20261005112415';
+import { AudioManager } from './audio.js?v=20261005112415';
+import { PORTS, TRIVIA, EVENTS, FIGURES as HIST_FIGURES, DISCOVERIES, MAP_ROUTES } from './history.js?v=20261005112415';
+import { WORLD_ROUTE } from './worldmap.js?v=20261005112415';
+import { t, LANG, setLang, applyStaticI18n, applyEnglishData, ordinal } from './i18n.js?v=20261005112415';
+import { MAPS, DEFAULT_MAP, findMap } from './maps.js?v=20261005112415';
+import { FIGURES, TRAITS, findFigure, portraitSrc, figName } from './figures.js?v=20261005112415';
+import { Fleet, FORMATION_LIST, findFormation, SPACING_LIST, findSpacing, formationDepth, MAX_CONSORTS, ORDERS, applyOfficerTraits, freshTraits } from './fleet.js?v=20261005112415';
+import { CHAPTERS, findChapter, chapterCount, MISSION_TYPES, goalText, meets, gradeOf, GRADE_COLOR } from './campaign.js?v=20261005112415';
+import { SAVE, persist, addFame, recordChapter, markSeen, meetVerse, recordBond, grantTitle } from './save.js?v=20261005112415';
+import { QUOTES as VERSES, findQuote as findVerse, stageOf, blankOut, MEMORIZED_AT } from './quotes.js?v=20261005112415';
+import { Cutscene } from './story.js?v=20261005112415';
+import { Wildlife, ANIMALS } from './wildlife.js?v=20261005112415';
+import { Bukhang, BOND_FULL } from './bukhang.js?v=20261005112415';
+import { buildSigns, locationAt, fmtKm, portName } from './signs.js?v=20261005112415';
+import { Duel } from './duel.js?v=20261005112415';
+import { Boarding, DUEL_FIG, fighterOf } from './boarding.js?v=20261005112415';
 
 applyEnglishData();
 applyStaticI18n();
@@ -1409,9 +1409,14 @@ function updateProgressCore(boat, idx, dist) {
   if (boat.finished) return;
   // 체크포인트
   const N = tr.sampleCount;
-  const cpIdx = tr.checkpoints[boat.nextCp];
-  const passed = ((idx - cpIdx) % N + N) % N;
-  if (passed < 60 && dist < TRACK_HALF_WIDTH * 3) {
+  // 지나친 체크포인트는 한 프레임에 여러 개라도 모두 처리한다.
+  // 블랙홀 관문(항로의 12%를 건너뛴다)이나 긴 점프는 체크포인트 하나를 통째로 넘는다.
+  // 예전처럼 '지나친 지 60칸 안'에서 하나씩만 보면 그 체크포인트를 영영 놓치고,
+  // 아래의 진행도 상한에 묶여 그 랩 내내 진행도가 멈춘다 — 앞질리지도 않았는데 순위가 줄줄이 떨어진다.
+  for (let guard = 0; guard < CHECKPOINT_COUNT && !boat.finished; guard++) {
+    const cpIdx = tr.checkpoints[boat.nextCp];
+    const passed = ((idx - cpIdx) % N + N) % N;
+    if (!(passed < N * 0.22 && dist < TRACK_HALF_WIDTH * 3)) break;
     const reached = boat.nextCp;
     boat.nextCp = (boat.nextCp + 1) % CHECKPOINT_COUNT;
     if (boat.nextCp === 1) {
@@ -1434,9 +1439,25 @@ function updateProgressCore(boat, idx, dist) {
       addQuiet(40);
     }
   }
-  let cum = tr.cum[idx];
-  if (boat.nextCp !== 0) { const cpCum = tr.cum[tr.checkpoints[boat.nextCp]]; if (cum > cpCum + 250) cum = cpCum; }
-  boat.progress = boat.lap * tr.totalLength + cum;
+  if (boat.finished) { boat.progress = Math.max(boat.progress, boat.lap * tr.totalLength); return; }
+  // 진행도 = 마지막으로 지난 체크포인트까지의 거리 + 거기서 앞뒤로 간 거리.
+  // 예전에는 '이번 랩의 누적 거리'를 그대로 썼다. 그러면 출발선 뒤 그리드의 배들(누적 거리가 거의 한 바퀴)은
+  // 모두 같은 값으로 묶여 있다가, 맨 먼저 출발선을 넘은 배만 0 으로 떨어져 선두가 꼴찌로 내려갔다.
+  // 마지막 체크포인트를 기준으로 앞뒤 반 바퀴 안에서 재면 출발선을 넘을 때도 값이 끊기지 않는다.
+  const L = tr.totalLength;
+  const lastCp = (boat.nextCp + CHECKPOINT_COUNT - 1) % CHECKPOINT_COUNT;
+  const base = tr.cum[tr.checkpoints[lastCp]];
+  // 가장 가까운 표본점에 접선 방향 성분을 더해 연속값으로 만든다 — 표본 간격 단위로 끊기면 나란히 가는 배끼리 순위가 깜빡인다
+  const sp = tr.samples[idx], tg = tr.tangents[idx];
+  const along = (boat.pos.x - sp.x) * tg.x + (boat.pos.z - sp.z) * tg.z;
+  let d = tr.cum[idx] + along - base;
+  d -= Math.round(d / L) * L;              // 마지막 체크포인트에서 앞뒤 반 바퀴 안으로
+  // 다음 체크포인트를 건너뛰고 지름길로 앞서 나가도 그 너머로는 쳐 주지 않는다
+  let gap = tr.cum[tr.checkpoints[boat.nextCp]] - base; if (gap <= 0) gap += L;
+  d = Math.min(d, gap + 250);
+  // 지난 체크포인트 0(출발선)은 이미 lap 에 셈했으므로, 체크포인트 0 다음 구간은 (lap)바퀴 + d,
+  // 마지막 구간(다음이 출발선)은 아직 lap 이 오르기 전이라 같은 식이 된다.
+  boat.progress = boat.lap * L + base + d;
 }
 
 // ---------- 접현과 일기토 ----------
@@ -1741,17 +1762,24 @@ function capsizePlayer(foe) {
 }
 
 function updateRanks() {
+  // 동료함은 기함을 호위하며 진형 자리를 지킨다. 진형에 따라 자리가 기함과 나란하거나 조금 앞이라
+  // 그대로 재면 동료함이 기함 앞뒤를 오가며 기함 순위를 깎는다 — 라이벌에게 앞질리지 않았는데 순위가 내려간다.
+  // 그래서 기함이 달리는 동안 동료함은 기함 바로 뒤까지만 쳐 준다. 기함이 완주한 뒤에는 제 기록대로 매긴다.
+  const p = G.player, escort = (b) => b.consort && b !== p && !p.finished;
+  const prog = (b) => escort(b) ? Math.min(b.progress, p.progress - 0.01) : b.progress;
+  const done = (b) => b.finished && !escort(b);
   const sorted = [...G.boats].sort((a, b) => {
     // 나포되거나 전복한 배는 완주 여부와 상관없이 맨 뒤로 보낸다
     const ao = a.captured || a.capsized, bo = b.captured || b.capsized;
     if (ao !== bo) return ao ? 1 : -1;
-    if (a.finished && b.finished) return a.finishTime - b.finishTime;
-    if (a.finished) return -1; if (b.finished) return 1;
-    return b.progress - a.progress;
+    const af = done(a), bf = done(b);
+    if (af && bf) return a.finishTime - b.finishTime;
+    if (af) return -1; if (bf) return 1;
+    return prog(b) - prog(a);
   });
-  const prevRank = G.player.rank;
+  const prevRank = p.rank;
   sorted.forEach((b, i) => { b.rank = i + 1; });
-  const p = G.player, O = G.overtake;
+  const O = G.overtake;
   if (G.state === 'racing' && G.raceTime > 4) {
     if (p.rank < prevRank && O.pending < 0) O.pending = 1.2; // 추월 후보: 1.2초 동안 순위를 지키면 인정
     if (p.rank > prevRank) {

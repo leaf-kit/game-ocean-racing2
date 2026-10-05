@@ -647,7 +647,7 @@ function buildSharkMesh(def, opts = {}) {
   g.rotation.y = -Math.PI / 2;
   g.scale.setScalar(SHIP_SCALE);
   outer.add(g);
-  outer.userData = { sails: [], flag, lantern, fire, hull, length: L, inner: g, swim, tail, fluke, pecs };
+  outer.userData = { sails: [], oars: [], flag, lantern, fire, hull, length: L, inner: g, swim, tail, fluke, pecs };
   return outer;
 }
 
@@ -759,18 +759,39 @@ export function buildShipMesh(def, opts = {}) {
     else { const figure = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), brassMat()); figure.position.set(L * 0.52, 0.5, 0); g.add(figure); }
   }
   // 노 (갤리선/거북선): 손잡이 + 넓적한 날
+  // 노는 뱃전의 노걸이(pivot)에 걸린다. 노걸이를 돌려서 젓고, 노 자체는 그 안에 매달린다.
+  // 이렇게 둘로 나눠 두면 boat.js 가 노걸이만 돌려도 손잡이는 안쪽, 날은 바깥쪽으로 함께 움직인다.
+  const oars = [];
   if (def.oars || def.turtle) {
     const n = def.turtle ? 6 : Math.max(5, Math.round(L * 0.7));
     const span = L * 0.62;
     const bladeGeo = new THREE.BoxGeometry(0.1, 0.5, 1.1);
+    const rowerBody = mat('rower', () => new THREE.MeshStandardMaterial({ color: 0x4a3b2c, roughness: 0.95 }));
     for (let i = 0; i < n; i++) for (const s of [-1, 1]) {
+      const ox = -L * 0.33 + (i / Math.max(1, n - 1)) * span;
+      // 노걸이: 뱃전 위. 여기가 노가 도는 중심이다.
+      const pivot = new THREE.Group();
+      pivot.position.set(ox, 0.3, s * (W * 0.5 + 0.1));
       const oar = new THREE.Group();
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.4, 5), darkWood);
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.8, 5), darkWood);
       shaft.rotation.x = Math.PI / 2; oar.add(shaft);
-      const blade = new THREE.Mesh(bladeGeo, woodMat); blade.position.z = 1.9; oar.add(blade);
-      oar.position.set(-L * 0.33 + (i / Math.max(1, n - 1)) * span, -0.05, s * (W * 0.5 + 1.2));
+      const blade = new THREE.Mesh(bladeGeo, woodMat); blade.position.z = 2.1; oar.add(blade);
+      oar.position.z = 1.0;                     // 손잡이는 뱃전 안쪽, 날은 바깥쪽으로
       oar.rotation.x = s * 0.45; oar.rotation.y = s > 0 ? 0 : Math.PI;
-      g.add(oar);
+      pivot.add(oar);
+      // 노걸이 받침 (움직이지 않는다)
+      if (!def.turtle) {
+        const lock = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.34, 5), darkWood);
+        lock.position.set(ox, 0.16, s * (W * 0.5 + 0.1)); g.add(lock);
+      }
+      // 노 젓는 사람: 거북선은 갑판이 덮여 있어 보이지 않는다
+      if (!def.turtle && !isModern) {
+        const rower = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 0.7, 6), rowerBody);
+        rower.position.set(ox, 0.5, s * W * 0.26); g.add(rower);
+      }
+      g.add(pivot);
+      // lag: 노마다 위상을 조금씩 늦춰 한 덩어리로 보이지 않게 한다 (뱃머리부터 물결처럼)
+      oars.push({ pivot, s, lag: (i / Math.max(1, n)) * 0.5 });
     }
   }
 
@@ -943,7 +964,7 @@ export function buildShipMesh(def, opts = {}) {
   g.rotation.y = -Math.PI / 2;
   g.scale.setScalar(SHIP_SCALE);
   outer.add(g);
-  outer.userData = { sails, flag, lantern, fire, hull, length: L, inner: g };
+  outer.userData = { sails, flag, lantern, fire, hull, length: L, inner: g, oars };
   return outer;
 }
 

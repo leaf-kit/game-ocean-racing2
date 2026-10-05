@@ -380,7 +380,7 @@ export class Environment {
 
   // 맵마다 다른 여울 색. 열대는 에메랄드, 극지는 옅은 하늘빛, 바위섬은 청록빛.
   _reefColor(map) {
-    const byStyle = { tropical: 0x3fe0c8, atoll: 0x4fe8d0, rocky: 0x2fc0c4, ice: 0x9fe8f5, coast: 0x35b8c0 };
+    const byStyle = { tropical: 0x3fe0c8, atoll: 0x4fe8d0, rocky: 0x2fc0c4, ice: 0x9fe8f5, coast: 0x35b8c0, harbor: 0x3aa8a0, river: 0x7fc47a };
     return new THREE.Color(byStyle[map && map.style] || 0x3fd8c8);
   }
 

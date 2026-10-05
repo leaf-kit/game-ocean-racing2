@@ -220,6 +220,23 @@ export class Boat {
     const ud = this.mesh.userData;
     const fill = THREE.MathUtils.clamp(0.35 + rel * 0.65 * wind.strength + this.speed / P.maxSpeed * 0.3, 0.2, 1.2);
     for (const s of ud.sails) s.scale.z += (fill - s.scale.z) * Math.min(1, 2 * dt);
+    // 노 젓기 (갤리선·갤리어스·거북선). 한 주기는 두 단계다.
+    //  끌기  : 날이 물에 잠긴 채 뱃머리 → 선미로 쓸어 넘긴다
+    //  되돌림: 날을 물 밖으로 들어 올려 다시 뱃머리로 가져온다
+    // cos 로 앞뒤 휘두름을, -sin 의 양수 구간으로 들어 올림을 만들면 둘이 자연히 반주기씩 엇갈린다.
+    if (ud.oars && ud.oars.length) {
+      const sr = Math.min(1, Math.abs(this.speed) / P.maxSpeed);
+      const freq = 1.5 + sr * 5.4;            // 빠를수록 자주 젓는다
+      const amp = 0.14 + sr * 0.46;           // 빠를수록 크게 젓는다
+      this.rowPh = (this.rowPh ?? 0) + freq * dt * (this.speed < 0 ? -1 : 1); // 후진하면 거꾸로 젓는다
+      for (const o of ud.oars) {
+        const ph = this.rowPh - o.lag;
+        const lift = Math.max(0, -Math.sin(ph)) * (0.2 + sr * 0.24);
+        // 좌·우현은 뱃전 반대쪽에 달려 있어 같은 방향으로 보이려면 부호를 뒤집어야 한다
+        o.pivot.rotation.y = Math.cos(ph) * amp * o.s;
+        o.pivot.rotation.x = -lift * o.s;
+      }
+    }
     // 부캉이는 돛이 없다. 꼬리를 저어 나아간다.
     // 몸 → 꼬리자루 → 꼬리지느러미 순으로 파동이 뒤로 흘러가게 위상을 늦춘다.
     // 한 덩어리로 흔들면 막대기를 젓는 것처럼 보인다.

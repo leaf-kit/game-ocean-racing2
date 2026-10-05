@@ -1,11 +1,11 @@
 // HUD 및 미니맵, 점수/콤보, 기항지 카드(세계지도), 폭풍 경고, 스피드 라인
-import { TRACK_HALF_WIDTH } from './track.js?v=20261005h';
-import { WorldMap, WORLD_ROUTE } from './worldmap.js?v=20261005h';
-import { PORTS } from './history.js?v=20261005h';
-import { t, LANG, ordinal } from './i18n.js?v=20261005h';
-import { portraitSrc, findFigure, figName } from './figures.js?v=20261005h';
-import { MISSION_TYPES } from './campaign.js?v=20261005h';
-import { portName, fmtKm, bearing } from './signs.js?v=20261005h';
+import { TRACK_HALF_WIDTH } from './track.js?v=20261005i';
+import { WorldMap, WORLD_ROUTE } from './worldmap.js?v=20261005i';
+import { PORTS } from './history.js?v=20261005i';
+import { t, LANG, ordinal } from './i18n.js?v=20261005i';
+import { portraitSrc, findFigure, figName } from './figures.js?v=20261005i';
+import { MISSION_TYPES } from './campaign.js?v=20261005i';
+import { portName, fmtKm, bearing } from './signs.js?v=20261005i';
 
 const $ = (id) => document.getElementById(id);
 

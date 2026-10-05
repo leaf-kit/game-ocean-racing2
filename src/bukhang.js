@@ -8,8 +8,8 @@
 // 플레이어는 조금 느려질 뿐이다. 그게 이 맵의 규칙이다.
 
 import * as THREE from 'three';
-import { waveHeight } from './ocean.js?v=20261005h';
-import { TRACK_HALF_WIDTH } from './track.js?v=20261005h';
+import { waveHeight } from './ocean.js?v=20261005i';
+import { TRACK_HALF_WIDTH } from './track.js?v=20261005i';
 
 // 등장할 수 있는 항로 구간 (진행률). 수로 안과 입구 언저리.
 const ZONES = [[0.18, 0.30], [0.42, 0.56], [0.64, 0.78]];

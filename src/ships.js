@@ -945,12 +945,13 @@ export function buildShipMesh(def, opts = {}) {
       const ox = -L * 0.33 + (i / Math.max(1, n - 1)) * span;
       // 노걸이: 뱃전 위. 여기가 노가 도는 중심이다.
       const pivot = new THREE.Group();
-      pivot.position.set(ox, 0.3, s * (W * 0.5 + 0.1));
+      // 거북선은 방패벽(W*0.56)이 뱃전 바깥까지 덮으므로 노걸이를 벽 밖으로 낸다 — 안쪽에 두면 노가 벽에 묻힌다
+      pivot.position.set(ox, def.turtle ? 0.45 : 0.3, s * (def.turtle ? W * 0.56 + 0.12 : W * 0.5 + 0.1));
       const oar = new THREE.Group();
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.8, 5), darkWood);
       shaft.rotation.x = Math.PI / 2; oar.add(shaft);
       const blade = new THREE.Mesh(bladeGeo, woodMat); blade.position.z = 2.1; oar.add(blade);
-      oar.position.z = 1.0;                     // 손잡이는 뱃전 안쪽, 날은 바깥쪽으로
+      oar.position.z = s * 1.0;                 // 손잡이는 뱃전 안쪽, 날은 바깥쪽으로 (좌현은 -z 쪽이 바깥)
       oar.rotation.x = s * 0.45; oar.rotation.y = s > 0 ? 0 : Math.PI;
       pivot.add(oar);
       // 노걸이 받침 (움직이지 않는다)

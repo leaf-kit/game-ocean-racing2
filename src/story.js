@@ -1,6 +1,6 @@
 // 컷씬: 역사 인물의 실제 초상화와 대사를 한 줄씩 보여 준다.
 // 클릭·스페이스로 다음 줄, ESC로 건너뛰기. show()는 끝날 때 resolve되는 Promise를 돌려준다.
-import { findFigure, portraitSrc, figName } from './figures.js?v=20261005h';
+import { findFigure, portraitSrc, figName } from './figures.js?v=20261005i';
 
 const $ = (id) => document.getElementById(id);
 

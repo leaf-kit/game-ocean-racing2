@@ -1,6 +1,6 @@
 // 세계 일주 항로의 기항지와 역사 해설, 세계지도 대륙 윤곽 (경도, 위도)
 // 체크포인트 14개 = 기항지 14곳. 리스본에서 출발해 아프리카 → 인도양 → 동아시아 → 태평양 → 카리브해 → 대서양으로 돌아온다.
-import { TOUR_ROUTES, TOUR_COASTS, EXTRA_MARKS } from './tour-routes.js?v=20261005h';
+import { TOUR_ROUTES, TOUR_COASTS, EXTRA_MARKS } from './tour-routes.js?v=20261005i';
 
 export const PORTS = [
   { name: '리스본', lon: -9.1, lat: 38.7, year: '1497', region: '포르투갈',

@@ -8,9 +8,9 @@
 //      상대의 자세를 보고 다음 수를 읽는다. 다만 노련한 상대는 자세로 속이기도 한다.
 //      두 번 내리 이기면 기세가 올라 다음 일격이 1.5배.
 // 결과는 main.js 가 경주에 반영한다 (이기면 상대 배가 멈추고, 지면 내 배가 멈춘다).
-import { LANG } from './i18n.js?v=20261005g';
-import { portraitSrc } from './figures.js?v=20261005g';
-import { drawFighter, drawTrail, costumeOf, poseAt, IMPACT_T } from './duel-figure.js?v=20261005g';
+import { LANG } from './i18n.js?v=20261005h';
+import { portraitSrc } from './figures.js?v=20261005h';
+import { drawFighter, drawTrail, costumeOf, poseAt, IMPACT_T } from './duel-figure.js?v=20261005h';
 
 const en = () => LANG === 'en';
 const T = (ko, enText) => (en() ? enText : ko);
@@ -331,7 +331,9 @@ export class Boarding {
 
   // ---------- 매 프레임 ----------
   update(dt) {
-    if (this.state === 'off' || this.state === 'menu') return;
+    // 결투 화면이 아닐 때(꺼짐·접현 메뉴·전리품 선택)는 그릴 것이 없다. 기싸움으로 이긴 뒤의 전리품 선택에는 결투 선장(P, R)이 없다.
+    if (this.state !== 'choose' && this.state !== 'clash' && this.state !== 'end') return;
+    if (!this.P || !this.R) return;
     this.t += dt;
     const P = this.P, R = this.R;
     P.poseT += dt; R.poseT += dt;

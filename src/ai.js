@@ -1,6 +1,6 @@
 // AI 조타 로직
 import * as THREE from 'three';
-import { TRACK_HALF_WIDTH } from './track.js?v=20261005g';
+import { TRACK_HALF_WIDTH } from './track.js?v=20261005h';
 
 const DIFF = {
   easy: { skill: 0.8, rubber: 0.10, fireChance: 0.25, boostUse: 0.5, laneVar: 0.7 },

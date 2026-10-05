@@ -11,8 +11,8 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { waveHeight } from './ocean.js?v=20261005g';
-import { TRACK_HALF_WIDTH } from './track.js?v=20261005g';
+import { waveHeight } from './ocean.js?v=20261005h';
+import { TRACK_HALF_WIDTH } from './track.js?v=20261005h';
 
 // ---------- 성능 상한 (여기만 고치면 전체가 바뀐다) ----------
 export const LIMITS = {

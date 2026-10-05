@@ -1,5 +1,5 @@
 // 양피지 풍 세계지도: 항로, 기항지, 현재 위치 표시
-import { PORTS, CONTINENTS, REGION_COASTS } from './history.js?v=20261005g';
+import { PORTS, CONTINENTS, REGION_COASTS } from './history.js?v=20261005h';
 
 export const WORLD_ROUTE = { ports: PORTS, bounds: [-180, 180, -58, 78] };
 

@@ -1,8 +1,8 @@
 // 함대: 기함 + 동료함 최대 3척. 진형을 유지하면 함대 항진 보너스가 쌓이고,
 // 1·2·3 키로 돌격 / 방패 / 산개 명령을 내린다. 동료함은 내구가 닳고, 0이 되면 대파한다.
 import * as THREE from 'three';
-import { TRACK_HALF_WIDTH } from './track.js?v=20261005i';
-import { TRAITS, findFigure } from './figures.js?v=20261005i';
+import { TRACK_HALF_WIDTH } from './track.js?v=20261005104532';
+import { TRAITS, findFigure } from './figures.js?v=20261005104532';
 
 // 진형: 기함 기준 오프셋. back 양수 = 뒤, side 양수 = 우현.
 // 동료함이 최대 9척까지 늘어나므로 자리를 고정 목록이 아니라 계산으로 만든다.

@@ -1,7 +1,7 @@
 // 함선 상태 및 물리
 import * as THREE from 'three';
-import { derivePhysics } from './ships.js?v=20261004a';
-import { waveHeight, waveNormal, SEA } from './ocean.js?v=20261004a';
+import { derivePhysics } from './ships.js?v=20261005g';
+import { waveHeight, waveNormal, SEA } from './ocean.js?v=20261005g';
 
 // 잠수 (부캉이)
 const DIVE_DEPTH = 4.2;      // 수면 아래로 내려가는 깊이
@@ -108,6 +108,7 @@ export class Boat {
     for (const s of ud.sails) s.scale.z += (1.1 - s.scale.z) * Math.min(1, 3 * dt);
     ud.flag.rotation.y = Math.PI + Math.sin(t * 10) * 0.3;
     ud.fire.visible = true;
+    if (ud.turtleFx) for (const f of ud.turtleFx.flames) f.visible = true;
     if (done) {
       this.loop = null; this.airY = 0; this.pitch = 0;
       this.turbo = Math.max(this.turbo, 3.2);
@@ -118,6 +119,8 @@ export class Boat {
   }
 
   update(dt, wind, t) {
+    // 버려진 배: 가라앉는 모습은 main.js 가 그린다. 물리를 돌리면 배가 다시 일어선다.
+    if (this.scuttled) return;
     // 나포: 돛을 내렸으니 더 나아가지 못한다. 조타 입력을 모두 지우고 흘러가게 둔다.
     if (this.captured) { this.throttle = 0; this.steer = 0; this.boosting = false; this.turbo = 0; this.diving = false; }
     const P = this.phys;
@@ -261,8 +264,19 @@ export class Boat {
       }
     }
     ud.flag.rotation.y = (wind.dir - this.heading) + Math.PI + Math.sin(t * 8) * 0.15;
-    ud.fire.visible = this.boosting || this.turbo > 0;
-    if (ud.fire.visible) { ud.fire.scale.set(1 + Math.random() * 0.3, 1 + Math.random() * 0.5, 1 + Math.random() * 0.3); }
+    const burning = this.boosting || this.turbo > 0;
+    if (ud.turtleFx) {
+      // 거북선: 용머리 입김과 선미 불기둥이 저마다 일렁인다. 터보(부스터 패드)일 때 더 길게 뿜는다.
+      const fx = ud.turtleFx, k = this.turbo > 0 ? 1.45 : 1;
+      for (const f of fx.flames) {
+        f.visible = burning;
+        if (burning) f.userData.core.scale.set(0.85 + Math.random() * 0.35, k * (0.75 + Math.random() * 0.55), 0.85 + Math.random() * 0.35);
+      }
+      fx.light.intensity = burning ? (22 + Math.random() * 14) * k : 0;
+    } else {
+      ud.fire.visible = burning;
+      if (burning) { ud.fire.scale.set(1 + Math.random() * 0.3, 1 + Math.random() * 0.5, 1 + Math.random() * 0.3); }
+    }
   }
 
   // 점프대 발사: 속도가 빠를수록 높이·멀리 난다. 공중에서는 터보로 초고속

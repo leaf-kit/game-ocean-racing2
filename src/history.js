@@ -1,5 +1,6 @@
 // 세계 일주 항로의 기항지와 역사 해설, 세계지도 대륙 윤곽 (경도, 위도)
 // 체크포인트 14개 = 기항지 14곳. 리스본에서 출발해 아프리카 → 인도양 → 동아시아 → 태평양 → 카리브해 → 대서양으로 돌아온다.
+import { TOUR_ROUTES, TOUR_COASTS, EXTRA_MARKS } from './tour-routes.js?v=20261005g';
 
 export const PORTS = [
   { name: '리스본', lon: -9.1, lat: 38.7, year: '1497', region: '포르투갈',
@@ -434,3 +435,9 @@ export const REGION_COASTS = {
     [[129.2,34.1],[129.5,34.15],[129.45,34.7],[129.2,34.65]], [[129.65,33.75],[129.8,33.75],[129.8,33.85],[129.65,33.85]],
   ],
 };
+
+// ---------- 관광 명소·도시·우주 맵 (tour-routes.js) ----------
+Object.assign(MAP_ROUTES, TOUR_ROUTES);
+Object.assign(REGION_COASTS, TOUR_COASTS);
+// 기항지 명소: 따로 정해 두지 않은 기항지는 이름으로 찾아 붙인다 (영어 이름으로 바뀌기 전에)
+for (const p of [...PORTS, ...Object.values(MAP_ROUTES).flatMap((r) => r.ports)]) if (!p.mark && EXTRA_MARKS[p.name]) p.mark = EXTRA_MARKS[p.name];

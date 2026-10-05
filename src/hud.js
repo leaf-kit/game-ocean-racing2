@@ -1,10 +1,11 @@
 // HUD 및 미니맵, 점수/콤보, 기항지 카드(세계지도), 폭풍 경고, 스피드 라인
-import { TRACK_HALF_WIDTH } from './track.js?v=20261004a';
-import { WorldMap, WORLD_ROUTE } from './worldmap.js?v=20261004a';
-import { PORTS } from './history.js?v=20261004a';
-import { t, LANG, ordinal } from './i18n.js?v=20261004a';
-import { portraitSrc, findFigure, figName } from './figures.js?v=20261004a';
-import { MISSION_TYPES } from './campaign.js?v=20261004a';
+import { TRACK_HALF_WIDTH } from './track.js?v=20261005g';
+import { WorldMap, WORLD_ROUTE } from './worldmap.js?v=20261005g';
+import { PORTS } from './history.js?v=20261005g';
+import { t, LANG, ordinal } from './i18n.js?v=20261005g';
+import { portraitSrc, findFigure, figName } from './figures.js?v=20261005g';
+import { MISSION_TYPES } from './campaign.js?v=20261005g';
+import { portName, fmtKm, bearing } from './signs.js?v=20261005g';
 
 const $ = (id) => document.getElementById(id);
 
@@ -30,6 +31,7 @@ export class HUD {
       // 부캉이 함선: 숨 게이지, 브리치 표시, 잠수 버튼
       breathRow: $('breath-row'), breathFill: $('breath-fill'), breathLabel: $('breath-label'),
       cannonLabel: $('cannon-label'), fireBtn: $('btn-fire'), padDive: document.querySelector('.pad-dive'),
+      loc: $('loc-bar'), locRoute: $('loc-route'), locDist: $('loc-dist'), locDir: $('loc-dir'), locFill: $('loc-fill'),
       tideRow: $('tide-row'), tideFill: $('tide-fill'), tideState: $('tide-state'),
       // 일기토: 표찰 / 승부를 묻는 패널 / 기싸움 저울
       duelMarks: $('duel-markers'), duelPrompt: $('duel-prompt'), dpName: $('dp-name'), dpShip: $('dp-ship'), dpOdds: $('dp-odds'),
@@ -53,6 +55,7 @@ export class HUD {
   }
   show() { this.el.hud.classList.remove('hidden'); document.body.classList.add('racing'); }
   hide() {
+    this.setLocation(null);
     this.clearDuelMarkers(); this.hideDuelPrompt(); this.setDuelBar(null);
     this.el.hud.classList.add('hidden'); document.body.classList.remove('racing'); this.vignette.classList.remove('on');
     this.speedLines.style.opacity = 0; this.rainOverlay.style.opacity = 0; this.lightning.style.opacity = 0;
@@ -183,6 +186,26 @@ export class HUD {
     this.portVisible = false;
     const e = this.el.port; e.classList.add('out');
     setTimeout(() => { if (!this.portVisible) e.classList.add('hidden'); }, 450);
+  }
+  // ---- 현재 위치 띠: 지나는 구간, 다음 기항지까지 남은 거리, 실제 방위 ----
+  setLocation(loc) {
+    const e = this.el;
+    if (!loc) { e.loc.classList.add('hidden'); this._locKey = ''; return; }
+    const space = this.route && this.route.space;
+    const from = portName(loc.from), to = portName(loc.to);
+    const route = `${from} → ${to}`;
+    const dist = t('loc.left', { km: fmtKm(loc.km) });
+    const dir = space ? '🚀' : (() => { const b = bearing(loc.from, loc.to); return `${b.arrow} ${b.name}`; })();
+    const key = route + dist + dir;
+    if (key !== this._locKey) {
+      // 구간이 바뀌면 한 번 반짝인다
+      if (this._locRoute && this._locRoute !== route) { e.loc.classList.remove('pulse'); void e.loc.offsetWidth; e.loc.classList.add('pulse'); }
+      this._locRoute = route; this._locKey = key;
+      e.locRoute.textContent = route; e.locDist.textContent = dist; e.locDir.textContent = dir;
+      e.loc.classList.toggle('space', !!space);
+    }
+    e.locFill.style.width = (loc.frac * 100).toFixed(1) + '%';
+    e.loc.classList.remove('hidden');
   }
   updatePortCard(frac, t) { if (this.portVisible) this.worldMap.draw(this.portIdx, frac, t); }
 
@@ -361,7 +384,7 @@ export class HUD {
 
   standings(boats) {
     const sorted = [...boats].sort((a, b) => a.rank - b.rank);
-    this.el.standings.innerHTML = sorted.map((b) => `<div class="${b.isPlayer ? 'me' : b.captured ? 'taken' : b.consort ? 'ally' : ''}"><span style="color:${b.color}">${b.consort ? '▣' : '■'}</span> ${b.rank}. ${b.name} <small>(${b.def.name})</small>${b.captured ? ' ⚓' : b.consort?.sunk ? ' ✖' : b.finished ? ' ✔' : ''}</div>`).join('');
+    this.el.standings.innerHTML = sorted.map((b) => `<div class="${b.isPlayer ? (b.taken ? 'me taken' : 'me') : b.captured ? 'taken' : b.consort ? 'ally' : ''}"><span style="color:${b.color}">${b.consort ? '▣' : '■'}</span> ${b.rank}. ${b.name} <small>(${b.def.name})</small>${b.scuttled ? ' 🔥' : b.captured ? ' ⚓' : b.consort?.sunk ? ' ✖' : b.finished ? ' ✔' : ''}</div>`).join('');
   }
 
   drawMinimap(track, boats, player, kraken, foresight = false) {
@@ -410,7 +433,7 @@ export class HUD {
     if (kraken) { ctx.fillStyle = '#c04ad8'; ctx.beginPath(); ctx.arc(track.kraken.x * s + ox, track.kraken.z * s + oz, 5, 0, Math.PI * 2); ctx.fill(); }
     // 배: 동료함은 사각형, 라이벌은 원
     for (const b of boats) {
-      if (b === player) continue;
+      if (b === player || b.scuttled) continue;   // 가라앉은 배는 지도에서 지운다
       const x = b.pos.x * s + ox, y = b.pos.z * s + oz;
       if (b.consort) {
         ctx.fillStyle = b.consort.sunk ? '#5a5a5a' : '#7bed9f';

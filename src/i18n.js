@@ -1,7 +1,7 @@
 // 언어 설정 (한국어 기본, 영어 선택). 정적 HTML은 data-i18n 속성으로, 동적 문자열은 t()로, 데이터는 applyEnglishData()로 바꾼다.
-import { PORTS, TRIVIA, EVENTS, FIGURES, DISCOVERIES } from './history.js?v=20261004a';
-import { SHIPS, SHIP_CATEGORIES, AI_NAMES } from './ships.js?v=20261004a';
-import { EN_DATA } from './i18n-data.js?v=20261004a';
+import { PORTS, TRIVIA, EVENTS, FIGURES, DISCOVERIES } from './history.js?v=20261005g';
+import { SHIPS, SHIP_CATEGORIES, AI_NAMES } from './ships.js?v=20261005g';
+import { EN_DATA } from './i18n-data.js?v=20261005g';
 
 export const LANG = (() => { try { return localStorage.getItem('hr_lang') || 'ko'; } catch (_) { return 'ko'; } })();
 export function setLang(l) { try { localStorage.setItem('hr_lang', l); } catch (_) { /* 무시 */ } location.reload(); }
@@ -29,6 +29,11 @@ const UI = {
     'hud.tapHint': '⚡ <b>SHIFT 연타</b> = 급가속 버스트 &nbsp;·&nbsp; <b>SHIFT 꾹</b> = 전속 항해<br><small>🖱 마우스/터치: 누른 채 좌우로 조타 · 빠르게 두드리면 급가속 · 우클릭/두 손가락 = 전속 항해</small>', 'hud.fireBtn': '💣 포격',
     'hud.me': '나 (선장)', 'hud.tailwind': '순풍 +', 'hud.headwind': '역풍 ',
     'port.lap': '세계 일주 {lap}회차 · {i}/{n} 기항지',
+    'res.duels': '⚔ 일기토 승 / 전', 'res.plunder': '💰 전리품', 'res.taken': '나포당함 — 항해 중단',
+    'spoils.goldPop': '💰 전리품', 'spoils.loading': '⚓ 전리품을 옮겨 싣는 중… {s}초 멈춘다', 'spoils.sunkPop': '🔥 격침', 'spoils.scuttled': '🔥 {name}의 {ship}이(가) 불타며 가라앉는다 — 경주에서 빠진다',
+    'board.takenCenter': '나포당함', 'board.takenEv': '⛓ {name}의 선원들이 내 배를 빼앗았다 — 항해 끝', 'board.failReason': '접현 일기토에서 져 배를 빼앗겼다', 'board.leave': '⛵ {name}의 배에서 갈고리를 풀었다', 'board.demandOk': '🏴 항복 받음 · 통행세', 'board.demandOkEv': '🏴 {name}이(가) 돛을 내리고 항복했다!', 'board.demandNo': '😤 {name}이(가) 코웃음을 치고 달아난다!',
+    'board.winPop': '⚔ 일기토 승리', 'board.winCenter': '일기토 승리!', 'board.winEv': '⚔ {name}을(를) 꺾었다! 상대 배가 멈춰 섰다 · 전속 항해 게이지 가득', 'board.loseEv': '💢 {name}에게 졌다… 배가 잠시 멈춘다', 'board.retreatEv': '🏳 칼을 거두고 물러났다',
+    'loc.left': '{km} 남음', 'loc.sign': '🪧 이정표 · {to}까지 {km}', 'loc.near': '⚓ 곧 {to} 입항 · {km} 남음', 'loc.finish': '🏁 결승선 {to}까지 {km}',
     'kc.event': '연대기 · 대항해시대', 'kc.figure': '📜 역사 인물 발견', 'kc.discovery': '🔮 발견 · {kind}', 'kc.guide': '항해 안내', 'kc.guideDate': '세계 일주 {n}회',
     'kc.guideTitle': '리스본에서 출항합니다', 'kc.guideText': '항해 중 우측에 연대기가 흐릅니다. 📜 두루마리를 밟으면 역사 인물을, 🔮 발견 구슬을 밟으면 오로라·해류 같은 현상을 만납니다. 🔥 주황 화살표 패드는 부스터, 🚀 나무 점프대를 밟으면 하늘을 납니다!',
     'eff.aurora': '하늘에 오로라가 펼쳐집니다 (25초)', 'eff.elmo': '돛대 끝에 푸른 불꽃이 맺힙니다', 'eff.tradewind': '12초 동안 바람이 내 편이 됩니다', 'eff.current': '10초 동안 해류가 배를 밀어줍니다', 'eff.citrus': '선원이 건강해져 전속 항해 게이지가 가득 찹니다', 'eff.bonus': '15초 동안 획득 점수 2배',
@@ -119,7 +124,7 @@ const UI = {
     'res.learned': '📚 이번 항해에서 배운 역사', 'res.learnedLine': '연대기 {e}건 열람 · 인물 {f}명 · 발견 {d}건', 'res.sailing': '항해 중', 'res.retry': '다시 출항', 'res.select': '함선 변경',
     // 일기토
     'duel.head': '⚔ 일기토', 'duel.clash': '기싸움',
-    'duel.note': '이기면 나포한다. 지면 전복되어 항해가 끝난다.',
+    'duel.note': '이기면 진 배를 나포하거나 버린다 — 어느 쪽이든 경주에서 빠진다. 지면 전복되어 항해가 끝난다.',
     'duel.accept': '⚔ 받는다', 'duel.decline': '물러난다',
     'duel.hint': 'SPACE · 화면 연타로 밀어붙여라',
     'duel.marker': '일기토',
@@ -129,7 +134,7 @@ const UI = {
     'duel.begin': '⚔ {name}에게 일기토를 걸었다',
     'duel.declined': '뱃머리를 돌렸다',
     'duel.wait': '아직 숨을 고르는 중이다',
-    'duel.win': '나포!', 'duel.winSub': '{name}의 돛을 내렸다',
+    'duel.win': '승리!', 'duel.winSub': '{name}의 돛을 내렸다',
     'duel.captured': '⚓ {name} ({ship}) 나포 — 더는 달리지 못한다',
     'duel.lose': '전복', 'duel.loseSub': '{name}에게 꺾였다',
     'duel.capsized': '배가 뒤집혔다',
@@ -155,6 +160,11 @@ const UI = {
     'hud.tapHint': '⚡ <b>Tap SHIFT</b> = speed burst &nbsp;·&nbsp; <b>Hold SHIFT</b> = full sail<br><small>🖱 Mouse/touch: hold and drag sideways to steer · rapid taps = burst · right-click / two fingers = full sail</small>', 'hud.fireBtn': '💣 Fire',
     'hud.me': 'You (Captain)', 'hud.tailwind': 'Tailwind +', 'hud.headwind': 'Headwind ',
     'port.lap': 'Voyage {lap} · port {i}/{n}',
+    'res.duels': '⚔ Duels won / fought', 'res.plunder': '💰 Spoils', 'res.taken': 'Taken — voyage over',
+    'spoils.goldPop': '💰 Spoils', 'spoils.loading': '⚓ Loading the spoils… lying still {s} s', 'spoils.sunkPop': '🔥 Scuttled', 'spoils.scuttled': "🔥 {name}'s {ship} burns and sinks — out of the race",
+    'board.takenCenter': 'TAKEN', 'board.takenEv': "⛓ {name}'s crew seized your ship — voyage over", 'board.failReason': 'Lost a boarding duel and your ship was seized', 'board.leave': '⛵ You cast off from {name}\'s ship', 'board.demandOk': '🏴 Surrender · toll paid', 'board.demandOkEv': '🏴 {name} strikes sail and surrenders!', 'board.demandNo': '😤 {name} laughs and pulls away!',
+    'board.winPop': '⚔ Duel won', 'board.winCenter': 'DUEL WON!', 'board.winEv': '⚔ You bested {name}! Their ship stops dead · full-sail gauge filled', 'board.loseEv': '💢 {name} beat you… your ship stalls', 'board.retreatEv': '🏳 You sheathe your blade and withdraw',
+    'loc.left': '{km} to go', 'loc.sign': '🪧 Signpost · {km} to {to}', 'loc.near': '⚓ Arriving at {to} · {km} to go', 'loc.finish': '🏁 {km} to the finish at {to}',
     'kc.event': 'Chronicle · Age of Discovery', 'kc.figure': '📜 Historical Figure', 'kc.discovery': '🔮 Discovery · {kind}', 'kc.guide': 'Voyage Guide', 'kc.guideDate': '{n} circumnavigations',
     'kc.guideTitle': 'Departing Lisbon', 'kc.guideText': 'A chronicle scrolls on the right as you sail. 📜 Scrolls reveal historical figures; 🔮 orbs reveal phenomena like auroras and currents. 🔥 Orange arrow pads are boosters, 🚀 wooden ramps launch you into the sky!',
     'eff.aurora': 'An aurora unfolds across the sky (25 s)', 'eff.elmo': 'Blue flames dance on the masthead', 'eff.tradewind': 'The wind is at your back for 12 s', 'eff.current': 'A current pushes you along for 10 s', 'eff.citrus': 'The crew recovers: full-sail gauge filled', 'eff.bonus': 'Double points for 15 s',
@@ -240,7 +250,7 @@ const UI = {
     'res.learned': '📚 History learned on this voyage', 'res.learnedLine': '{e} chronicle entries · {f} figures · {d} discoveries', 'res.sailing': 'still sailing', 'res.retry': 'Sail Again', 'res.select': 'Change Ship',
     // Single combat
     'duel.head': '⚔ Single Combat', 'duel.clash': 'CLASH',
-    'duel.note': 'Win and you take her. Lose and you capsize — the voyage ends.',
+    'duel.note': 'Win and you take or scuttle her — either way she leaves the race. Lose and you capsize — the voyage ends.',
     'duel.accept': '⚔ Take it', 'duel.decline': 'Stand off',
     'duel.hint': 'Hammer SPACE · tap the screen to push',
     'duel.marker': 'challenge',
@@ -250,7 +260,7 @@ const UI = {
     'duel.begin': '⚔ You called out {name}',
     'duel.declined': 'You bore away',
     'duel.wait': 'Still catching your breath',
-    'duel.win': 'TAKEN!', 'duel.winSub': "Struck {name}'s colours",
+    'duel.win': 'VICTORY!', 'duel.winSub': "Struck {name}'s colours",
     'duel.captured': '⚓ {name} ({ship}) taken — she races no more',
     'duel.lose': 'CAPSIZED', 'duel.loseSub': '{name} broke you',
     'duel.capsized': 'Your ship rolled over',

@@ -1,7 +1,7 @@
 // 레이스 코스: 항로, 체크포인트, 섬, 암초, 소용돌이, 보급품, 크라켄
 import * as THREE from 'three';
-import { waveHeight } from './ocean.js?v=20261004a';
-import { DEFAULT_MAP } from './maps.js?v=20261004a';
+import { waveHeight } from './ocean.js?v=20261005g';
+import { DEFAULT_MAP } from './maps.js?v=20261005g';
 
 // 시드 난수
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -576,21 +576,71 @@ export class Track {
     ];
     const TRACK_SCALE = this.scale, style = this.map.style;
     const candidates = fixed.map(([x, z, r]) => [x * TRACK_SCALE, z * TRACK_SCALE, r * TRACK_SCALE]);
-    const ringN = style === 'atoll' ? 28 : style === 'coast' ? 56 : 40;
+    const ringN = style === 'atoll' ? 28 : style === 'coast' ? 56 : style === 'karst' ? 90 : style === 'space' ? 60 : 40;
     for (let i = 0; i < ringN; i++) {
-      const a = rand() * Math.PI * 2, r = (style === 'coast' ? 520 + rand() * 700 : 700 + rand() * 900) * TRACK_SCALE;
-      candidates.push([Math.cos(a) * r + 50, Math.sin(a) * r + 250, (style === 'atoll' ? 70 : 40) + rand() * 120]);
+      const a = rand() * Math.PI * 2, r = (style === 'coast' || style === 'karst' ? 520 + rand() * 700 : 700 + rand() * 900) * TRACK_SCALE;
+      candidates.push([Math.cos(a) * r + 50, Math.sin(a) * r + 250, (style === 'atoll' ? 70 : style === 'karst' ? 18 : 40) + rand() * (style === 'karst' ? 50 : 120)]);
+    }
+    // 하롱베이: 항로 가까이에도 돌기둥을 촘촘히 세워 그 사이를 빠져나가게 한다
+    if (style === 'karst') for (let i = 0; i < 70; i++) {
+      const idx = Math.floor(rand() * this.sampleCount), p = this.pointAt(idx), n = this.normalAt(idx);
+      const r = 10 + rand() * 22, d = (rand() < 0.5 ? -1 : 1) * (TRACK_HALF_WIDTH + 14 + r + rand() * 120);
+      candidates.push([p.x + n.x * d, p.z + n.z * d, r]);
     }
     const iceMat = new THREE.MeshStandardMaterial({ color: 0xeaf6ff, roughness: 0.55, metalness: 0.05 });
     const iceBase = new THREE.MeshStandardMaterial({ color: 0x9fdcf5, roughness: 0.4, transparent: true, opacity: 0.9 });
     const cliffMat = new THREE.MeshStandardMaterial({ color: 0x7a7266, roughness: 1, flatShading: true });
     const darkGreen = new THREE.MeshStandardMaterial({ color: 0x2f6b3a, roughness: 1 });
     const lagoonMat = new THREE.MeshBasicMaterial({ color: 0x5fe0d8, transparent: true, opacity: 0.8 });
+    const karstMat = new THREE.MeshStandardMaterial({ color: 0x8a958a, roughness: 1, flatShading: true });
+    const karstTop = new THREE.MeshStandardMaterial({ color: 0x3f6e3a, roughness: 1, flatShading: true });
+    const asteroidMat = new THREE.MeshStandardMaterial({ color: 0x7a7480, roughness: 1, flatShading: true });
+    const asteroidRed = new THREE.MeshStandardMaterial({ color: 0x8a5a48, roughness: 1, flatShading: true });
+    const craterMat = new THREE.MeshBasicMaterial({ color: 0x3a3640 });
+    const domeMat = new THREE.MeshStandardMaterial({ color: 0xe8f0ff, roughness: 0.2, metalness: 0.3, emissive: 0x223355 });
+    const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
+    const blueDome = new THREE.MeshStandardMaterial({ color: 0x2f62c8, roughness: 0.5 });
     for (const [x, z, r0] of candidates) {
       const r = this.map.bigIce && style === 'ice' ? r0 * 1.3 : r0;
       const { dist } = this.distToCurve(x, z);
       if (dist < r + TRACK_HALF_WIDTH + 8) continue;
       const g = new THREE.Group();
+      if (style === 'karst') {
+        // 석회 돌기둥: 물에서 곧게 솟은 회녹색 기둥 1~3개, 꼭대기는 숲
+        const n = r > 30 ? 2 + Math.floor(rand() * 2) : 1;
+        for (let k = 0; k < n; k++) {
+          const pr = k === 0 ? r * 0.8 : r * (0.35 + rand() * 0.3), ph = pr * (2.2 + rand() * 1.8);
+          const a = rand() * Math.PI * 2, d = k === 0 ? 0 : r * 0.5;
+          const pillar = new THREE.Mesh(new THREE.CylinderGeometry(pr * 0.62, pr, ph, 7), karstMat);
+          pillar.position.set(Math.cos(a) * d, ph / 2 - 2, Math.sin(a) * d); pillar.rotation.y = rand() * 3; g.add(pillar);
+          const cap = new THREE.Mesh(new THREE.SphereGeometry(pr * 0.7, 7, 5), karstTop);
+          cap.scale.set(1, 0.55, 1); cap.position.set(pillar.position.x, ph - 2, pillar.position.z); g.add(cap);
+        }
+        g.position.set(x, 0, z); this.group.add(g);
+        this.islands.push({ x, z, r }); this.obstacles.push({ x, z, r: r * 0.85, type: 'island' });
+        continue;
+      }
+      if (style === 'space') {
+        // 소행성: 울퉁불퉁한 바위 덩어리가 물 위에 반쯤 떠 있다. 큰 것에는 달 기지 돔.
+        const geo = new THREE.IcosahedronGeometry(r * 0.75, 1);
+        const pos = geo.attributes.position;
+        for (let v = 0; v < pos.count; v++) { const k = 0.78 + rand() * 0.4; pos.setXYZ(v, pos.getX(v) * k, pos.getY(v) * k * 0.7, pos.getZ(v) * k); }
+        geo.computeVertexNormals();
+        const rock = new THREE.Mesh(geo, rand() < 0.3 ? asteroidRed : asteroidMat);
+        rock.position.y = r * 0.12; rock.rotation.set(rand() * 0.4, rand() * 3, rand() * 0.4); g.add(rock);
+        for (let k = 0; k < 3; k++) {
+          const cr = r * (0.12 + rand() * 0.1), a = rand() * Math.PI * 2;
+          const crater = new THREE.Mesh(new THREE.CircleGeometry(cr, 12), craterMat);
+          crater.position.set(Math.cos(a) * r * 0.3, r * 0.12 + r * 0.5, Math.sin(a) * r * 0.3); crater.rotation.x = -Math.PI / 2; g.add(crater);
+        }
+        if (r > 90) {
+          const dome = new THREE.Mesh(new THREE.SphereGeometry(r * 0.16, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
+          dome.position.y = r * 0.12 + r * 0.5; g.add(dome);
+        }
+        g.position.set(x, 0, z); this.group.add(g);
+        this.islands.push({ x, z, r }); this.obstacles.push({ x, z, r: r * 0.85, type: 'island' });
+        continue;
+      }
       if (style === 'ice') {
         // 빙산: 푸른 밑동 + 하얀 각진 봉우리들
         const base = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.2, 4, 7), iceBase); base.position.y = -1; g.add(base);
@@ -631,6 +681,18 @@ export class Track {
           const hill = new THREE.Mesh(new THREE.ConeGeometry(hr, hh, 8), h === 0 && r > 80 ? cliffMat : darkGreen);
           const a = rand() * Math.PI * 2, d = rand() * r * 0.35;
           hill.position.set(Math.cos(a) * d, top.position.y + hh / 2, Math.sin(a) * d); g.add(hill);
+        }
+        if (this.map.village && r > 34) {
+          // 에게해: 정상에 하얀 집들과 파란 돔 하나
+          const houses = 4 + Math.floor(r / 14);
+          for (let h = 0; h < houses; h++) {
+            const a = rand() * Math.PI * 2, d = r * (0.2 + rand() * 0.5), w = 4 + rand() * 4;
+            const house = new THREE.Mesh(new THREE.BoxGeometry(w, w * 0.8, w), whiteMat);
+            house.position.set(Math.cos(a) * d, top.position.y + 0.75 + w * 0.4, Math.sin(a) * d); house.rotation.y = rand() * 3; g.add(house);
+          }
+          const dome = new THREE.Mesh(new THREE.SphereGeometry(4.5, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), blueDome);
+          dome.position.set(0, top.position.y + 7, 0); g.add(dome);
+          const base = new THREE.Mesh(new THREE.BoxGeometry(9, 6, 9), whiteMat); base.position.set(0, top.position.y + 3.75, 0); g.add(base);
         }
         const trees = Math.floor(r / 22);
         for (let t = 0; t < trees; t++) {
@@ -928,8 +990,12 @@ export class Track {
       castle: { quay: 0x8e8578, land: 0x6a7350, prop: 'spire',  quayH: 11, propEvery: 2 },
       gorge:  { quay: 0x6a6b63, land: 0x4a5540, prop: 'cliff',  quayH: 46, propEvery: 1 },
       swamp:  { quay: 0x5a5436, land: 0x44512f, prop: 'cypress', quayH: 3, propEvery: 1 },
+      venice: { quay: 0xd8ccb0, land: 0xb89a7a, prop: 'palazzo', quayH: 3, propEvery: 1 },
+      paris:  { quay: 0xcfc4a8, land: 0x7a8a5a, prop: 'spire',  quayH: 8,  propEvery: 1, stone: 0xe4dac0, roof: 0x5c6a78 },
+      metro:  { quay: 0x8a8a86, land: 0x4f5a48, prop: 'tower',  quayH: 7,  propEvery: 1, towerH: 2.2 },
     }[B] || { quay: 0x8a8a82, land: 0x5a6b45, prop: 'palm', quayH: 6, propEvery: 2 };
 
+    this.quayH = LOOK.quayH;   // 이정표를 호안 위에 세울 때 쓴다
     const quayMat = new THREE.MeshStandardMaterial({ color: LOOK.quay, roughness: 1, flatShading: B === 'gorge' });
     const landMat = new THREE.MeshStandardMaterial({ color: LOOK.land, roughness: 1 });
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
@@ -1001,6 +1067,20 @@ export class Track {
     // 미시시피는 외륜선, 그 밖에는 바지선. 배경이면서 부딪히는 구조물이다.
     const hullMat = new THREE.MeshStandardMaterial({ color: B === 'swamp' ? 0xe8e2d2 : 0x3f4a56, roughness: 0.8 });
     const deckMat2 = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: 0.85 });
+    if (B === 'venice') {
+      // 베네치아: 바지선 대신 호안에 매어 둔 검은 곤돌라들 (가드 로프 바깥이라 부딪히지 않는다)
+      const gondolaMat = new THREE.MeshStandardMaterial({ color: 0x15151a, roughness: 0.4 });
+      for (let k = 0; k < 24; k++) {
+        const i = at(0.03 + k / 24), p = this.pointAt(i), n = this.normalAt(i), tg = this.tangentAt(i);
+        const sd = k % 2 ? 1 : -1, gx = p.x + n.x * sd * (G - 1.5), gz = p.z + n.z * sd * (G - 1.5);
+        const gon = new THREE.Group();
+        const hull = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.2, 15), gondolaMat); hull.position.y = 0.4; gon.add(hull);
+        for (const e of [-1, 1]) { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.9, 4, 5), gondolaMat); tip.rotation.x = e * -1.1; tip.position.set(0, 1.6, e * 8.2); gon.add(tip); }
+        gon.position.set(gx, 0, gz); gon.rotation.y = Math.atan2(tg.x, tg.z) + (rand() - 0.5) * 0.2;
+        this.group.add(gon);
+      }
+      return;
+    }
     for (const [u, sd] of [[0.3, -1], [0.66, 1]]) {
       const i = at(u);
       const p = this.pointAt(i), n = this.normalAt(i), tg = this.tangentAt(i);
@@ -1020,7 +1100,13 @@ export class Track {
   }
 
   // 뭍 위에 세우는 것들. 지역마다 다르다.
+  // 여기서 세운 건물은 clearable 로 표시해 둔다. 기항지 명소를 세울 때 그 둘레를 비운다 (signs.js).
   _buildRiverProps(LOOK, STEP) {
+    const before = this.group.children.length;
+    this._buildRiverPropsInner(LOOK, STEP);
+    for (const c of this.group.children.slice(before)) if (c.isInstancedMesh) c.userData.clearable = true;
+  }
+  _buildRiverPropsInner(LOOK, STEP) {
     const rand = this.rand, N = this.sampleCount, G = GUARD_OFFSET;
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
     const every = STEP * (LOOK.propEvery || 2);
@@ -1047,10 +1133,11 @@ export class Track {
 
     if (LOOK.prop === 'tower') {
       // 도시: 호안 뒤로 늘어선 건물. 배경이므로 충돌은 두지 않는다.
-      const mat = new THREE.MeshStandardMaterial({ color: 0x6b737c, roughness: 0.9 });
+      const tall = LOOK.towerH || 1;
+      const mat = new THREE.MeshStandardMaterial({ color: tall > 1 ? 0x8a96a4 : 0x6b737c, roughness: tall > 1 ? 0.45 : 0.9, metalness: tall > 1 ? 0.35 : 0 });
       const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, spots.length);
       spots.forEach(([x, z], k) => {
-        const w = 16 + rand() * 26, h = 30 + rand() * 120;
+        const w = 16 + rand() * 26, h = (30 + rand() * 120) * (tall > 1 ? 0.6 + rand() * tall : 1);
         q.setFromEuler(new THREE.Euler(0, rand() * 1.6, 0));
         sc.set(w, h, w * (0.7 + rand() * 0.6));
         pv.set(x, h / 2 - 3, z); m.compose(pv, q, sc); inst.setMatrixAt(k, m);
@@ -1059,10 +1146,39 @@ export class Track {
       return;
     }
 
+    if (LOOK.prop === 'palazzo') {
+      // 베네치아: 물가에 바로 선 색색의 궁전. 호안 바로 뒤부터 빽빽하게.
+      const cols = [0xd89a6a, 0xe8c890, 0xc8705a, 0xf0e0c8, 0xe0a8a0, 0xd8b070, 0xb8604a].map((c) => new THREE.Color(c));
+      const near = [];
+      for (let i = 0; i < N; i += STEP) for (const sd of [-1, 1]) {
+        const p = this.pointAt(i), n = this.normalAt(i);
+        for (const d of [G + 18, G + 44]) near.push([p.x + n.x * sd * d, p.z + n.z * sd * d, Math.atan2(this.tangentAt(i).x, this.tangentAt(i).z)]);
+      }
+      const body = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), near.length);
+      const roofs = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xa04a34, roughness: 0.9 }), near.length);
+      near.forEach(([x, z, head], k) => {
+        const h = 14 + rand() * 16, w = 18 + rand() * 10;
+        q.setFromEuler(new THREE.Euler(0, head, 0));
+        sc.set(22, h, w); pv.set(x, h / 2 - 1, z); m.compose(pv, q, sc); body.setMatrixAt(k, m); body.setColorAt(k, cols[k % cols.length]);
+        sc.set(23, 1.4, w + 1); pv.set(x, h, z); m.compose(pv, q, sc); roofs.setMatrixAt(k, m);
+      });
+      sc.set(1, 1, 1); this.group.add(body, roofs);
+      // 곤돌라 말뚝(팔리나): 호안 앞 물속에 줄무늬 기둥
+      const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.35, 0.35, 9, 6), new THREE.MeshStandardMaterial({ color: 0x2a4aa8 }), 80);
+      let pk = 0;
+      for (let i = 4; i < N && pk < 80; i += 20) for (const sd of [-1, 1]) {
+        const p = this.pointAt(i), n = this.normalAt(i);
+        pv.set(p.x + n.x * sd * (G - 3), 2.5, p.z + n.z * sd * (G - 3)); q.identity(); m.compose(pv, q, sc);
+        if (pk < 80) pole.setMatrixAt(pk++, m);
+      }
+      pole.count = pk; this.group.add(pole);
+      return;
+    }
+
     if (LOOK.prop === 'spire') {
       // 유럽 구시가: 낮은 석조 건물 위로 교회 첨탑이 솟는다
-      const stone = new THREE.MeshStandardMaterial({ color: 0xa89c86, roughness: 0.95 });
-      const roof = new THREE.MeshStandardMaterial({ color: 0x8a4a3a, roughness: 0.9 });
+      const stone = new THREE.MeshStandardMaterial({ color: LOOK.stone ?? 0xa89c86, roughness: 0.95 });
+      const roof = new THREE.MeshStandardMaterial({ color: LOOK.roof ?? 0x8a4a3a, roughness: 0.9 });
       const body = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), stone, spots.length);
       const spire = new THREE.InstancedMesh(new THREE.ConeGeometry(4.5, 26, 6), roof, spots.length);
       let si = 0;
@@ -1102,11 +1218,11 @@ export class Track {
     const p = this.pointAt(i), tg = this.tangentAt(i);
     const g = new THREE.Group();
     const span = (G + 60) * 2;
-    const DECK_Y = B === 'gorge' ? 54 : 27;
+    const DECK_Y = B === 'gorge' ? 54 : B === 'venice' ? 20 : 27;
 
     const concrete = new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: 1 });
     const steel = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, roughness: 0.5, metalness: 0.55 });
-    const accent = new THREE.MeshStandardMaterial({ color: B === 'castle' ? 0x7a8a6a : 0xc0564a, roughness: 0.5, metalness: 0.4 });
+    const accent = new THREE.MeshStandardMaterial({ color: B === 'castle' ? 0x7a8a6a : B === 'venice' || B === 'paris' ? 0xe2d8c0 : 0xc0564a, roughness: 0.5, metalness: B === 'venice' || B === 'paris' ? 0 : 0.4 });
     const deckMat = new THREE.MeshStandardMaterial({ color: B === 'jungle' || B === 'swamp' ? 0x7a6a4a : 0xd0ccc0, roughness: 0.9 });
 
     // 상판
@@ -1127,7 +1243,7 @@ export class Track {
     }
 
     // 상부 구조: 도시는 사장교 주탑, 유럽은 사슬, 그 밖에는 트러스 아치
-    if (B === 'city' && no % 2 === 0) {
+    if ((B === 'city' || B === 'metro') && no % 2 === 0) {
       for (const sd of [-1, 1]) {
         const tower = new THREE.Mesh(new THREE.BoxGeometry(3.4, 46, 3.4), steel);
         tower.position.set(sd * (G + 16), DECK_Y + 23, 0); g.add(tower);

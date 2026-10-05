@@ -1,4 +1,22 @@
-// WebAudio 기반 사운드 (외부 파일 없이 합성)
+// WebAudio 사운드.
+// 항해 효과음(돛, 물살, 삐걱임, 물보라, 포성, 천둥, 바람, 금화, 종)은 CC0 녹음을 쓴다 — assets/sfx/CREDITS.md
+// 녹음을 불러오기 전이나 불러오지 못했을 때는 예전처럼 합성음으로 대신한다. 카운트다운·점수 같은 신호음은 합성음이다.
+
+// 소리 묶음: 같은 묶음에서 매번 다른 녹음을 골라 같은 소리가 되풀이되지 않게 한다
+const SFX = {
+  sail: ['sail_flap_1', 'sail_flap_2', 'sail_flap_3', 'sail_flap_4'],   // 돛이 바람을 받아 펄럭
+  sailSnap: ['sail_snap_1', 'sail_snap_2'],                            // 돛이 팽팽하게 펴지는 순간
+  creak: ['creak_1', 'creak_2', 'creak_3', 'creak_4', 'creak_5'],      // 선체·돛대의 삐걱임
+  wash: ['wash_1', 'wash_2'],                                          // 뱃전을 스치는 물살 (반복)
+  rain: ['rain_loop'],                                                 // 폭풍의 비 (반복)
+  gust: ['gust_1', 'gust_2'], whistle: ['wind_whistle'],               // 돌풍
+  whoosh: ['whoosh_1', 'whoosh_2', 'whoosh_3'],
+  splash: ['splash_01', 'splash_03', 'splash_05', 'splash_08', 'splash_11', 'splash_14'],
+  hitWood: ['hit_wood_1', 'hit_wood_2', 'hit_wood_3'], crack: ['crack_1', 'crack_2'],
+  cannon: ['cannon_1', 'cannon_2', 'cannon_3', 'cannon_4', 'cannon_5'],
+  thunder: ['thunder_1'], coins: ['coins_1', 'coins_2'], bell: ['bell_1', 'bell_2'],
+};
+
 export class AudioManager {
   constructor() {
     this.ctx = null; this.enabled = false; this.master = null; this.musicOn = true;
@@ -7,6 +25,125 @@ export class AudioManager {
     this.mapTracks = {};   // 맵 전용 곡 { mapId: [트랙 번호] }
     this.mapId = null;     // 지금 달리는 맵
     this.ready = this.probeMusic();
+    this.buf = {}; this.samplesReady = false; this._last = {};
+    this._next = { creak: 0, flap: 0, gust: 0 };
+    this.speedRatio = 0; this.stormLevel = 0;
+  }
+
+  // ---------- 녹음 효과음 ----------
+  async loadSamples() {
+    const names = [...new Set(Object.values(SFX).flat())];
+    const got = {};
+    await Promise.all(names.map(async (n) => {
+      try {
+        const r = await fetch(`assets/sfx/${n}.mp3`);
+        if (!r.ok) return;
+        got[n] = await this.ctx.decodeAudioData(await r.arrayBuffer());
+      } catch (_) { /* 이 소리는 합성음으로 대신한다 */ }
+    }));
+    for (const k in SFX) this.buf[k] = SFX[k].map((n) => got[n]).filter(Boolean);
+    this.samplesReady = Object.values(this.buf).some((a) => a.length);
+    if (this.samplesReady) this._startBeds();
+  }
+  // 묶음에서 하나를 골라 튼다. 직전에 튼 것은 피하고, 높이를 조금씩 흔들어 사람 귀에 덜 반복적으로 들리게.
+  // 틀었으면 true, 녹음이 없으면 false (부르는 쪽이 합성음으로 대신한다)
+  play(group, { vol = 1, rate = 1, jitter = 0.06, delay = 0, pan = 0 } = {}) {
+    if (!this.enabled) return true;
+    const list = this.buf[group];
+    if (!list || !list.length) return false;
+    let i = Math.floor(Math.random() * list.length);
+    if (list.length > 1 && i === this._last[group]) i = (i + 1) % list.length;
+    this._last[group] = i;
+    const ctx = this.ctx, t = ctx.currentTime + delay;
+    const src = ctx.createBufferSource(); src.buffer = list[i];
+    src.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * jitter);
+    const g = ctx.createGain(); g.gain.value = vol;
+    let node = g;
+    if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p); node = p; }
+    src.connect(g); node.connect(this.sfx); src.start(t);
+    return true;
+  }
+  // 반복 바탕음: 물살과 빗소리. mp3 앞뒤의 빈 틈을 건너뛰도록 반복 구간을 조금 안쪽으로 잡는다.
+  _bed(group, vol, idx = 0) {
+    const b = this.buf[group] && this.buf[group][idx];
+    if (!b) return null;
+    const src = this.ctx.createBufferSource(); src.buffer = b; src.loop = true;
+    src.loopStart = 0.05; src.loopEnd = b.duration - 0.05;
+    const g = this.ctx.createGain(); g.gain.value = vol;
+    src.connect(g); g.connect(this.sfx); src.start(this.ctx.currentTime + Math.random() * 0.1, 0.05);
+    return { src, g };
+  }
+  _startBeds() {
+    if (this.beds) return;
+    const t = this.ctx.currentTime;
+    // 녹음이 준비되면 합성 바람 소리는 천천히 줄여 끈다
+    if (this.windGain) {
+      this.windGain.gain.cancelScheduledValues(t); this.windGain.gain.setTargetAtTime(0, t, 0.8); this.synthWindOff = true;
+      const w = this._windSrc, l = this._windLfo;
+      setTimeout(() => { try { l.stop(); w.stop(); } catch (_) { /* 이미 멈춤 */ } }, 4000);
+    }
+    // 물살 두 겹: 길이가 다른 두 녹음을 겹쳐 반복이 맞물리지 않게 한다 (8.2초 · 5.8초)
+    const wash = this._bed('wash', 0, 0), wash2 = this._bed('wash', 0, 1);
+    const rain = this._bed('rain', 0);
+    // 물살에 느린 너울: 배가 파도를 넘을 때마다 물소리가 커졌다 작아진다
+    if (wash) {
+      const lfo = this.ctx.createOscillator(); lfo.frequency.value = 0.13;
+      const lg = this.ctx.createGain(); lg.gain.value = 0.08;
+      lfo.connect(lg); lg.connect(wash.g.gain); lfo.start();
+    }
+    this.beds = { wash, wash2, rain };
+    this._applyBeds();
+  }
+  _applyBeds() {
+    if (!this.beds) return;
+    const t = this.ctx.currentTime, r = this.speedRatio, B = this.beds;
+    // 우주에는 물이 없다
+    const water = this.mapId === 'space' ? 0 : 1;
+    if (B.wash) {
+      B.wash.g.gain.setTargetAtTime(water * (0.16 + r * 0.5 + this.stormLevel * 0.2), t, 0.3);
+      B.wash.src.playbackRate.setTargetAtTime(0.85 + r * 0.35, t, 0.4);   // 빠를수록 물살이 빠르고 높게
+    }
+    if (B.wash2) {
+      B.wash2.g.gain.setTargetAtTime(water * (0.05 + r * 0.32), t, 0.4);   // 둘째 겹은 속도가 붙을 때 차오른다
+      B.wash2.src.playbackRate.setTargetAtTime(0.75 + r * 0.45, t, 0.4);
+    }
+    if (B.rain) B.rain.g.gain.setTargetAtTime(this.mapId === 'space' ? 0 : this.stormLevel * 0.75, t, 0.6);
+  }
+  // 폭풍 세기 0~1: 빗소리와 삐걱임이 커진다
+  setStorm(level) {
+    if (!this.enabled) return;
+    if (Math.abs(level - this.stormLevel) < 0.02) return;
+    this.stormLevel = level; this._applyBeds();
+  }
+  // 항해 중 이따금: 선체가 삐걱이고, 속도가 붙으면 돛이 펄럭이고 돌풍이 스친다
+  _sailingTick() {
+    if (!this.samplesReady || this.speedRatio < 0.05) return;
+    const now = this.ctx.currentTime, r = this.speedRatio, st = this.stormLevel, N = this._next;
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    if (now > N.creak) {
+      this.play('creak', { vol: 0.25 + st * 0.35 + Math.random() * 0.15, rate: 0.8, jitter: 0.15, pan: rnd(-0.6, 0.6) });
+      N.creak = now + (st > 0.3 ? rnd(1.5, 4) : rnd(4, 9));
+    }
+    if (r > 0.35 && now > N.flap) {
+      this.play('sail', { vol: 0.18 + r * 0.25, rate: 0.75, jitter: 0.12, pan: rnd(-0.3, 0.3) });
+      N.flap = now + rnd(3, 7) / (0.6 + r);
+    }
+    if (r > 0.6 && now > N.gust) {
+      this.play('gust', { vol: 0.2 + r * 0.25 + st * 0.2, rate: 0.9, jitter: 0.12, pan: rnd(-0.5, 0.5) });
+      N.gust = now + rnd(5, 11);
+    }
+  }
+  // 돛을 펼친다: 출발 신호, 부스트, 돌풍. 몇 번 펄럭이다 팽팽해진다.
+  sailUnfurl() {
+    if (!this.play('sail', { vol: 0.75, rate: 0.85 })) { this._noise(0.5, 0.35, 900, 'bandpass'); return; }
+    this.play('sail', { vol: 0.6, rate: 0.9, delay: 0.12 });
+    this.play('sail', { vol: 0.5, rate: 1.0, delay: 0.24 });
+    this.play('sailSnap', { vol: 0.85, rate: 0.8, delay: 0.38 });
+  }
+  gust() {
+    if (!this.play('gust', { vol: 0.7, rate: 0.85 })) return;
+    this.play('whistle', { vol: 0.25, rate: 0.7, delay: 0.2 });
+    this.play('sail', { vol: 0.5, rate: 0.8, delay: 0.35 });
   }
 
   // assets/music/ 에 사용자가 넣어둔 음악 파일을 찾는다.
@@ -60,7 +197,7 @@ export class AudioManager {
   }
   get hasExternalMusic() { return this.tracks.length > 0; }
   // 지금 달리는 맵. 맵 전용 곡이 있으면 레이스 중에 그 곡만 나온다.
-  setMap(id) { this.mapId = id || null; }
+  setMap(id) { this.mapId = id || null; this._applyBeds(); }
   get mapPool() {
     const p = this.mapId && this.mapTracks[this.mapId];
     return p ? p.filter((i) => !this.failed.has(i)) : null;
@@ -79,6 +216,7 @@ export class AudioManager {
     this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = this.MUSIC_VOL; this.musicGain.connect(this.master);
     this.enabled = true;
     this._ambient();
+    this.loadSamples();
     if (this.el && !this.elSource) { this.elSource = this.ctx.createMediaElementSource(this.el); this.elSource.connect(this.musicGain); this.el.volume = 1; }
   }
 
@@ -124,17 +262,21 @@ export class AudioManager {
     this.windFilter = filt;
     const g = ctx.createGain(); g.gain.value = 0.35; this.windGain = g;
     src.connect(filt); filt.connect(g); g.connect(this.sfx);
-    src.start();
+    src.start(); this._windSrc = src;
     // LFO로 파도 느낌
     const lfo = ctx.createOscillator(); lfo.frequency.value = 0.15;
     const lfoG = ctx.createGain(); lfoG.gain.value = 0.12;
-    lfo.connect(lfoG); lfoG.connect(g.gain); lfo.start();
+    lfo.connect(lfoG); lfoG.connect(g.gain); lfo.start(); this._windLfo = lfo;
   }
 
   // 속도에 따라 바람 소리 변화
   setSpeed(ratio, boosting) {
     if (!this.enabled) return;
     const t = this.ctx.currentTime;
+    const r = Math.min(1.2, ratio + (boosting ? 0.25 : 0));
+    if (Math.abs(r - this.speedRatio) > 0.02) { this.speedRatio = r; this._applyBeds(); }
+    this._sailingTick();
+    if (this.synthWindOff) return;   // 녹음이 준비되면 합성 바람은 쓰지 않는다
     this.windFilter.frequency.setTargetAtTime(300 + ratio * 900 + (boosting ? 600 : 0), t, 0.2);
     this.windGain.gain.setTargetAtTime(0.25 + ratio * 0.4 + (boosting ? 0.25 : 0), t, 0.2);
   }
@@ -162,33 +304,42 @@ export class AudioManager {
   }
 
   countdown() { this._tone(440, 0.25, 'square', 0.18); }
-  go() { this._tone(880, 0.6, 'square', 0.22); setTimeout(() => this._tone(1320, 0.5, 'square', 0.18), 80); }
+  go() { this._tone(880, 0.6, 'square', 0.22); setTimeout(() => this._tone(1320, 0.5, 'square', 0.18), 80); this.sailUnfurl(); }   // 출발: 돛을 편다
   pickup() { this._tone(1046, 0.15, 'sine', 0.25); setTimeout(() => this._tone(1568, 0.25, 'sine', 0.25), 70); }
-  boost() { this._noise(0.6, 0.5, 1500, 'highpass'); this._tone(220, 0.5, 'sawtooth', 0.12, 0.05); }
-  hit(strength = 1) { this._noise(0.35, 0.6 * strength, 200, 'lowpass'); this._tone(80, 0.35, 'triangle', 0.4 * strength); }
-  cannon() { this._noise(0.5, 0.8, 150, 'lowpass'); this._tone(60, 0.4, 'sine', 0.5); }
-  splash() { this._noise(0.4, 0.35, 2500, 'bandpass'); }
+  boost() {
+    // 돛이 바람을 가득 받아 팽팽해지는 소리 + 휙
+    if (this.play('whoosh', { vol: 0.8, rate: 0.8 })) { this.play('sailSnap', { vol: 0.9, rate: 0.85, delay: 0.04 }); this.play('sail', { vol: 0.55, delay: 0.1 }); return; }
+    this._noise(0.6, 0.5, 1500, 'highpass'); this._tone(220, 0.5, 'sawtooth', 0.12, 0.05);
+  }
+  hit(strength = 1) {
+    // 나무 선체가 부딪히는 소리. 세게 부딪히면 판자가 갈라지는 소리까지
+    if (this.play('hitWood', { vol: 0.5 + strength * 0.6, rate: 0.85 - strength * 0.1 })) { if (strength > 0.6) this.play('crack', { vol: strength * 0.7, rate: 0.9, delay: 0.03 }); this.play('splash', { vol: 0.25 * strength, delay: 0.06 }); return; }
+    this._noise(0.35, 0.6 * strength, 200, 'lowpass'); this._tone(80, 0.35, 'triangle', 0.4 * strength);
+  }
+  cannon() { if (this.play('cannon', { vol: 1.1, rate: 0.95, jitter: 0.08 })) return; this._noise(0.5, 0.8, 150, 'lowpass'); this._tone(60, 0.4, 'sine', 0.5); }
+  splash() { if (this.play('splash', { vol: 0.8 })) return; this._noise(0.4, 0.35, 2500, 'bandpass'); }
   whirl() { this._tone(200, 1.2, 'sine', 0.15, 0.1); }
   lap() { [660, 880, 1100].forEach((f, i) => setTimeout(() => this._tone(f, 0.3, 'triangle', 0.25), i * 110)); }
-  bell() { this._tone(1760, 1.2, 'sine', 0.25, 0.005); this._tone(2637, 0.9, 'sine', 0.12, 0.005); }
+  bell() { if (this.play('bell', { vol: 0.8, jitter: 0.02 })) return; this._tone(1760, 1.2, 'sine', 0.25, 0.005); this._tone(2637, 0.9, 'sine', 0.12, 0.005); }   // 뱃종
   finish(win) {
     const seq = win ? [523, 659, 784, 1046, 784, 1046, 1318] : [392, 349, 330, 294];
     seq.forEach((f, i) => setTimeout(() => this._tone(f, 0.45, 'triangle', 0.3), i * 160));
   }
   kraken() { this._tone(55, 1.5, 'sawtooth', 0.3, 0.2); this._noise(1.2, 0.4, 120, 'lowpass'); }
   // ---- 도파민 효과음 ----
-  coin(n = 0) { this._tone(1318 * Math.pow(1.06, Math.min(n, 12)), 0.12, 'square', 0.12); }
+  coin(n = 0) { if (this.play('coins', { vol: 0.45, rate: 1 + Math.min(n, 12) * 0.04, jitter: 0.03 })) return; this._tone(1318 * Math.pow(1.06, Math.min(n, 12)), 0.12, 'square', 0.12); }   // 콤보가 오를수록 금화가 높게 짤랑
   combo(n = 1) {
     const base = 660 * Math.pow(1.0595, Math.min(n, 14));
     this._tone(base, 0.18, 'triangle', 0.25); setTimeout(() => this._tone(base * 1.5, 0.28, 'triangle', 0.22), 70);
   }
-  whoosh() { this._noise(0.35, 0.45, 2200, 'highpass'); }
+  whoosh() { if (this.play('whoosh', { vol: 0.8 })) return; this._noise(0.35, 0.45, 2200, 'highpass'); }
   overtake() { [880, 1108, 1318, 1760].forEach((f, i) => setTimeout(() => this._tone(f, 0.18, 'square', 0.14), i * 55)); }
   perfect() { [1046, 1318, 1568, 2093].forEach((f, i) => setTimeout(() => this._tone(f, 0.25, 'triangle', 0.28), i * 70)); }
-  treasure() { [784, 988, 1175, 1568, 1975].forEach((f, i) => setTimeout(() => this._tone(f, 0.3, 'sine', 0.3), i * 90)); this._noise(0.4, 0.2, 3000, 'highpass'); }
+  treasure() { [784, 988, 1175, 1568, 1975].forEach((f, i) => setTimeout(() => this._tone(f, 0.3, 'sine', 0.3), i * 90)); if (!this.play('coins', { vol: 0.8, rate: 0.9 })) this._noise(0.4, 0.2, 3000, 'highpass'); }
   stormWarn() { this._tone(110, 1.4, 'sawtooth', 0.22, 0.3); this._tone(165, 1.4, 'sawtooth', 0.14, 0.3); }
   thunder() {
     if (!this.enabled) return;
+    if (this.play('thunder', { vol: 1.1, rate: 0.95, jitter: 0.12, pan: (Math.random() - 0.5) * 0.8 })) return;
     const ctx = this.ctx, t = ctx.currentTime, dur = 2.2;
     const len = Math.floor(ctx.sampleRate * dur);
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);

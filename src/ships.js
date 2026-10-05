@@ -651,6 +651,180 @@ function buildSharkMesh(def, opts = {}) {
   return outer;
 }
 
+// ---------- 거북선 ----------
+// 『이충무공전서』(1795)의 귀선도를 따른다.
+//   판옥선 선체 위에 포혈(砲穴)을 뚫은 방패벽을 두르고, 그 위를 거북 등처럼 둥근 지붕으로 덮었다.
+//   지붕은 육각 철판을 이어 붙이고 송곳(철첨)을 촘촘히 박았으며, 가운데에 십자로 좁은 길을 냈다.
+//   뱃머리에는 유황 연기를 뿜는 용머리(龍頭)를, 그 아래에는 귀면(鬼面)을 달았다. 돛대는 둘.
+// 돌려주는 것: 부스트 때 켤 불꽃 묶음 (용머리 입김 + 선미 분사구 둘), 연기·불티를 뿜을 자리
+function turtleShellTexture() {
+  if (TEX.turtleShell) return TEX.turtleShell;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#2a2a2c'; x.fillRect(0, 0, 256, 256);
+  const R = 22, hx = R * Math.sqrt(3);
+  for (let row = -1; row < 9; row++) for (let col = -1; col < 8; col++) {
+    const cx = col * hx + (row % 2 ? hx / 2 : 0), cy = row * R * 1.5;
+    const shade = 78 + ((row * 7 + col * 13) % 5) * 10;   // 철판마다 조금씩 다른 빛
+    x.beginPath();
+    for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; x.lineTo(cx + Math.cos(a) * (R - 2), cy + Math.sin(a) * (R - 2)); }
+    x.closePath();
+    const g = x.createRadialGradient(cx - 5, cy - 6, 2, cx, cy, R);
+    g.addColorStop(0, `rgb(${shade + 40},${shade + 38},${shade + 34})`); g.addColorStop(1, `rgb(${shade},${shade - 2},${shade - 6})`);
+    x.fillStyle = g; x.fill();
+    x.strokeStyle = '#141416'; x.lineWidth = 3.5; x.stroke();
+    x.fillStyle = '#8a8478'; for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; x.fillRect(cx + Math.cos(a) * (R - 7) - 1, cy + Math.sin(a) * (R - 7) - 1, 2.5, 2.5); }   // 리벳
+    if ((row + col) % 4 === 0) { x.fillStyle = 'rgba(140,70,30,0.35)'; x.beginPath(); x.arc(cx + 4, cy + 5, 6, 0, Math.PI * 2); x.fill(); }   // 녹
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(5, 2); t.colorSpace = THREE.SRGBColorSpace;
+  return (TEX.turtleShell = t);
+}
+function ghostFaceTexture() {
+  if (TEX.ghostFace) return TEX.ghostFace;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 160;
+  const x = c.getContext('2d');
+  x.fillStyle = '#7a1e14'; x.fillRect(0, 0, 256, 160);
+  x.strokeStyle = '#d9b04a'; x.lineWidth = 6; x.strokeRect(4, 4, 248, 152);
+  x.fillStyle = '#2a5a3a'; x.beginPath(); x.ellipse(128, 82, 96, 64, 0, 0, Math.PI * 2); x.fill();   // 얼굴
+  x.fillStyle = '#d9b04a';
+  for (const sx of [-1, 1]) {                                                                       // 뿔
+    x.beginPath(); x.moveTo(128 + sx * 52, 30); x.lineTo(128 + sx * 86, 6); x.lineTo(128 + sx * 70, 40); x.fill();
+    x.fillStyle = '#f2ece0'; x.beginPath(); x.ellipse(128 + sx * 40, 66, 22, 15, 0, 0, Math.PI * 2); x.fill();   // 눈
+    x.fillStyle = '#c0392b'; x.beginPath(); x.arc(128 + sx * 40, 66, 9, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#111'; x.beginPath(); x.arc(128 + sx * 40, 66, 4, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#d9b04a';
+    x.strokeStyle = '#111'; x.lineWidth = 5; x.beginPath(); x.moveTo(128 + sx * 16, 46); x.lineTo(128 + sx * 64, 42); x.stroke();   // 눈썹
+  }
+  x.fillStyle = '#111'; x.beginPath(); x.ellipse(128, 118, 50, 20, 0, 0, Math.PI * 2); x.fill();    // 입
+  x.fillStyle = '#f2ece0'; for (let k = -4; k <= 4; k++) { x.beginPath(); x.moveTo(128 + k * 11 - 5, 100); x.lineTo(128 + k * 11, 113); x.lineTo(128 + k * 11 + 5, 100); x.fill(); }
+  for (const sx of [-1, 1]) { x.beginPath(); x.moveTo(128 + sx * 30, 104); x.lineTo(128 + sx * 36, 136); x.lineTo(128 + sx * 42, 104); x.fill(); }   // 송곳니
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return (TEX.ghostFace = t);
+}
+// 불꽃 한 줄기: 바깥은 주황, 속은 흰 노랑. 더해 그리기(additive)로 빛나게. 길이 축은 core 의 +y.
+function makeFlame(len, rad) {
+  const flame = new THREE.Group(), core = new THREE.Group();
+  const mk = (r, h, col, op) => {
+    const geo = new THREE.ConeGeometry(r, h, 12, 1, true); geo.translate(0, h / 2, 0);   // 넓은 밑동이 원점(분사구), 뾰족한 끝이 +y
+    return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  };
+  core.add(mk(rad, len, 0xff5a12, 0.75), mk(rad * 0.62, len * 0.72, 0xffa53a, 0.8), mk(rad * 0.32, len * 0.42, 0xfff3c0, 0.95));
+  flame.add(core); flame.userData.core = core;
+  return flame;
+}
+function buildTurtle(g, def, L, W, mastH, mastMat, sails, mastTops, hullMat) {
+  const painted = new THREE.MeshStandardMaterial({ map: woodTexture('turtleWall', '#8a3e24', '#3a1a0c', 9, 0.4), roughness: 0.8 });   // 붉게 칠한 방패벽
+  const iron = new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 0.5, metalness: 0.7 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.35, metalness: 0.75 });
+  const dragonGreen = new THREE.MeshStandardMaterial({ color: 0x2f6b3a, roughness: 0.45, metalness: 0.25 });
+  const red = new THREE.MeshStandardMaterial({ color: 0xa8241a, roughness: 0.55 });
+  const ivory = new THREE.MeshStandardMaterial({ color: 0xf2ece0, roughness: 0.4 });
+
+  // 1. 포혈을 뚫은 방패벽 (판옥)
+  const WALL_H = 1.35, WALL_Y = 0.2 + WALL_H / 2, WL = L * 0.8, WX = -L * 0.02, WZ = W * 0.56;   // 방패벽은 뱃전 바깥까지 덮는다
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(WL, WALL_H, WZ * 2), painted); wall.position.set(WX, WALL_Y, 0); g.add(wall);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(WL + 0.1, 0.12, WZ * 2 + 0.06), gold); band.position.set(WX, WALL_Y + WALL_H / 2, 0); g.add(band);
+  const portGeo = new THREE.BoxGeometry(0.36, 0.32, 0.08), rimGeo = new THREE.BoxGeometry(0.46, 0.42, 0.04);
+  const portMat = new THREE.MeshStandardMaterial({ color: 0x0a0806, roughness: 1 });
+  for (const sd of [-1, 1]) for (let i = 0; i < 7; i++) {
+    const px = WX - WL * 0.42 + (i / 6) * WL * 0.84;
+    const rim = new THREE.Mesh(rimGeo, gold); rim.position.set(px, WALL_Y, sd * (WZ + 0.01)); g.add(rim);
+    const hole = new THREE.Mesh(portGeo, portMat); hole.position.set(px, WALL_Y, sd * (WZ + 0.03)); g.add(hole);
+    const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.35, 8), iron); muzzle.rotation.x = Math.PI / 2; muzzle.position.set(px, WALL_Y, sd * (WZ + 0.15)); g.add(muzzle);
+  }
+  // 2. 거북 등 지붕: 반원통 + 앞뒤 둥근 마구리, 육각 철판
+  const RZ = WZ * 0.98, RY = 1.6, RL = WL * 0.9, ROOF_Y = WALL_Y + WALL_H / 2;
+  const shellMat = new THREE.MeshStandardMaterial({ map: turtleShellTexture(), roughness: 0.5, metalness: 0.35 });
+  const roofGeo = new THREE.CylinderGeometry(RZ, RZ, RL, 32, 1, true, 0, Math.PI); roofGeo.rotateZ(Math.PI / 2);
+  const roof = new THREE.Mesh(roofGeo, shellMat); roof.scale.y = RY / RZ; roof.position.set(WX, ROOF_Y, 0); g.add(roof);
+  for (const end of [-1, 1]) {
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(RZ, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), shellMat);
+    cap.scale.set((end > 0 ? 1.2 : 0.95) / RZ, RY / RZ, 1); cap.position.set(WX + end * RL / 2, ROOF_Y, 0); g.add(cap);
+  }
+  // 십자 통로: 등마루를 따라 한 줄, 가운데에서 가로로 한 줄
+  const walkMat = new THREE.MeshStandardMaterial({ map: woodTexture('turtleWalk', '#6a4a2a', '#2a1a0a', 6, 0.4), roughness: 0.9 });
+  const spine = new THREE.Mesh(new THREE.BoxGeometry(RL * 1.02, 0.08, 0.5), walkMat); spine.position.set(WX, ROOF_Y + RY + 0.02, 0); g.add(spine);
+  const cross = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, RZ * 1.1), walkMat); cross.position.set(WX, ROOF_Y + RY - 0.12, 0); cross.rotation.x = 0; g.add(cross);
+  // 3. 송곳(철첨): 지붕 면을 따라 줄지어, 통로는 비운다
+  const spikeGeo = new THREE.ConeGeometry(0.07, 0.42, 5); spikeGeo.translate(0, 0.21, 0);
+  const spikeMat = new THREE.MeshStandardMaterial({ color: 0xb8bcc2, metalness: 0.85, roughness: 0.3 });
+  const rows = 11, rings = [0.22, 0.42, 0.62, 0.8, 1.2, 1.38, 1.58, 1.78, 1.98, 2.2, 2.4, 2.6, 2.78, 2.92];
+  const spikes = new THREE.InstancedMesh(spikeGeo, spikeMat, rows * rings.length);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), nrm = new THREE.Vector3(), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+  let si = 0;
+  for (let r = 0; r < rows; r++) for (const phi of rings) {
+    if (Math.abs(phi - Math.PI / 2) < 0.3) continue;                 // 등마루 통로
+    const x = WX - RL * 0.46 + (r / (rows - 1)) * RL * 0.92 + (rings.indexOf(phi) % 2 ? 0.18 : 0);
+    if (Math.abs(x - WX) < 0.35) continue;                           // 가로 통로
+    pos.set(x, ROOF_Y + Math.sin(phi) * RY, Math.cos(phi) * RZ);
+    nrm.set(0, Math.sin(phi) / RY, Math.cos(phi) / RZ).normalize();
+    q.setFromUnitVectors(up, nrm); m4.compose(pos, q, one); spikes.setMatrixAt(si++, m4);
+  }
+  spikes.count = si; g.add(spikes);
+
+  // 4. 귀면: 뱃머리 앞판에 그린 도깨비 얼굴
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.95), new THREE.MeshStandardMaterial({ map: ghostFaceTexture(), roughness: 0.7 }));
+  face.position.set(WX + WL / 2 + 0.02, WALL_Y - 0.05, 0); face.rotation.y = Math.PI / 2; g.add(face);
+
+  // 5. 용머리: 목을 들어 앞을 노려보고, 벌린 입에서 유황 연기와 불을 뿜는다
+  const neckBase = new THREE.Vector3(WX + RL / 2 + 0.2, ROOF_Y + 0.3, 0);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.52, 1.7, 12), dragonGreen);
+  neck.position.set(neckBase.x + 0.45, neckBase.y + 0.6, 0); neck.rotation.z = -0.55; g.add(neck);
+  for (let k = 0; k < 5; k++) {                                       // 붉은 갈기
+    const mane = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.6, 4), red);
+    mane.position.set(neckBase.x + 0.05 + k * 0.22, neckBase.y + 0.55 + k * 0.32, 0); mane.rotation.z = 1.2; g.add(mane);
+  }
+  const head = new THREE.Group(); head.position.set(neckBase.x + 1.05, neckBase.y + 1.45, 0); head.rotation.z = -0.12; g.add(head);
+  const skull = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.78, 0.9), dragonGreen); head.add(skull);
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.96), gold); brow.position.set(0.25, 0.36, 0); head.add(brow);
+  const upperJaw = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.34, 0.74), dragonGreen); upperJaw.position.set(0.95, 0.05, 0); upperJaw.rotation.z = 0.12; head.add(upperJaw);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), dragonGreen); nose.scale.set(1, 0.8, 1.3); nose.position.set(1.52, 0.12, 0); head.add(nose);
+  const lowerJaw = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.18, 0.62), dragonGreen); lowerJaw.position.set(0.85, -0.42, 0); lowerJaw.rotation.z = -0.32; head.add(lowerJaw);
+  const tongue = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 0.36), red); tongue.position.set(0.85, -0.25, 0); tongue.rotation.z = -0.15; head.add(tongue);
+  const mouthIn = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.5), new THREE.MeshBasicMaterial({ color: 0x3a0a06 })); mouthIn.position.set(0.7, -0.18, 0); head.add(mouthIn);
+  const toothGeo = new THREE.ConeGeometry(0.05, 0.16, 4);
+  for (const sd of [-1, 1]) for (let k = 0; k < 4; k++) {
+    const tu = new THREE.Mesh(toothGeo, ivory); tu.position.set(0.55 + k * 0.26, -0.16, sd * 0.3); tu.rotation.z = Math.PI; head.add(tu);
+    const tl = new THREE.Mesh(toothGeo, ivory); tl.position.set(0.5 + k * 0.24, -0.4 - k * 0.07, sd * 0.24); head.add(tl);
+  }
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffd54f, emissive: 0xff9a00, emissiveIntensity: 0.9 });
+  for (const sd of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), eyeMat); eye.position.set(0.35, 0.22, sd * 0.42); head.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0x111111 })); pupil.position.set(0.44, 0.22, sd * 0.5); head.add(pupil);
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.9, 6), gold); horn.position.set(-0.35, 0.65, sd * 0.28); horn.rotation.z = 1.0; horn.rotation.x = sd * 0.25; head.add(horn);
+    const whisker = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.012, 1.1, 4), gold); whisker.position.set(1.4, -0.05, sd * 0.45); whisker.rotation.z = 1.3; whisker.rotation.x = sd * -0.6; head.add(whisker);
+  }
+  const mouth = new THREE.Object3D(); mouth.position.set(1.45, -0.18, 0); head.add(mouth);
+
+  // 6. 꼬리와 선미 분사구 (부스트 때 불기둥을 뒤로 뿜는다)
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.1, 6), dragonGreen); tail.position.set(WX - RL / 2 - 0.55, ROOF_Y + 0.15, 0); tail.rotation.z = 1.05; g.add(tail);
+  const jets = [];
+  for (const sd of [-1, 1]) {
+    const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.34, 0.6, 12, 1, true), iron);
+    nozzle.rotation.z = Math.PI / 2; nozzle.position.set(WX - WL / 2 - 0.25, WALL_Y - 0.1, sd * W * 0.26); g.add(nozzle);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.05, 6, 14), gold); ring.rotation.y = Math.PI / 2; ring.position.set(WX - WL / 2 - 0.55, WALL_Y - 0.1, sd * W * 0.26); g.add(ring);
+    const jet = new THREE.Object3D(); jet.position.set(WX - WL / 2 - 0.6, WALL_Y - 0.1, sd * W * 0.26); g.add(jet); jets.push(jet);
+  }
+
+  // 7. 돛대 둘과 대나무 살을 댄 돛 (지붕을 뚫고 선다)
+  for (const [mx, hk] of [[L * 0.14, 0.62], [-L * 0.2, 0.52]]) {
+    const h = mastH * hk;
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, h, 8), mastMat); mast.position.set(mx, ROOF_Y + h / 2, 0); g.add(mast);
+    const sail = makeSail(L * 0.3, h * 0.6, def.sailColor, { junk: true });
+    sail.position.set(mx - 0.15, ROOF_Y + h * 0.55, 0); sail.rotation.y = Math.PI / 2; g.add(sail); sails.push(sail);
+    mastTops.push([mx, ROOF_Y + h]);
+  }
+
+  // 8. 불꽃 묶음: 용머리 입김(앞) + 분사구 불기둥 둘(뒤) + 선체를 비추는 주황 불빛
+  const group = new THREE.Group();
+  const breath = makeFlame(3.2, 0.5); breath.rotation.z = -Math.PI / 2; mouth.add(breath);
+  const flames = [breath];
+  for (const jet of jets) { const col = makeFlame(5.5, 0.42); col.rotation.z = Math.PI / 2; jet.add(col); flames.push(col); }
+  const light = new THREE.PointLight(0xff7a2a, 0, 26, 1.6); light.position.set(WX - WL / 2 - 1.5, WALL_Y + 0.5, 0); g.add(light);
+  for (const f of flames) f.visible = false;   // 켜고 끄기는 boat.js 가 불꽃마다 한다
+  return { group, flames, light, mouth, jets };
+}
+
 export function buildShipMesh(def, opts = {}) {
   if (def.shark) return buildSharkMesh(def, opts);
   const g = new THREE.Group();
@@ -796,6 +970,7 @@ export function buildShipMesh(def, opts = {}) {
   }
 
   const sails = [];
+  let turtleFx = null;     // 거북선: 용머리·꼬리 분사구와 불꽃
   const mastH = L * (def.oars ? 0.7 : 0.75);
   const mastMat = darkWood;
   const mastTops = [];
@@ -820,32 +995,7 @@ export function buildShipMesh(def, opts = {}) {
     }
     mastTops.push([-L * 0.4, L * 0.34 + 0.9]);
   } else if (def.turtle) {
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(W * 0.6, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ map: woodTexture('turtle', '#3b3b3b', '#151515', 10, 0.3), roughness: 0.6, metalness: 0.4 }));
-    dome.scale.set(L * 0.7 / (W * 0.6), 1, 1);
-    dome.position.y = 0.2;
-    g.add(dome);
-    const spikeMat = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, metalness: 0.8, roughness: 0.3 });
-    for (let i = 0; i < 26; i++) {
-      const a = (i / 26) * Math.PI * 2;
-      const r = 0.55 + Math.random() * 0.35;
-      const s = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.7, 5), spikeMat);
-      s.position.set(Math.cos(a) * L * 0.7 * r, 0.2 + Math.sqrt(Math.max(0, 1 - r * r)) * W * 0.6, Math.sin(a) * W * 0.6 * r);
-      s.lookAt(s.position.clone().multiplyScalar(2).setY(s.position.y * 2 + 1));
-      s.rotateX(Math.PI / 2);
-      g.add(s);
-    }
-    const head = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.3, 1.1), new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.6 }));
-    head.position.set(L * 0.55, 1.1, 0); g.add(head);
-    const jaw = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 0.9), new THREE.MeshStandardMaterial({ color: 0xc0392b }));
-    jaw.position.set(L * 0.62, 0.55, 0); g.add(jaw);
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffd54f, emissive: 0xffa000, emissiveIntensity: 0.8 });
-    for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), eyeMat); e.position.set(L * 0.6, 1.4, s * 0.4); g.add(e); }
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, mastH * 0.7, 8), mastMat);
-    mast.position.set(-L * 0.05, mastH * 0.35, 0); g.add(mast);
-    const sail = makeSail(L * 0.42, mastH * 0.4, def.sailColor);
-    sail.position.set(-L * 0.05 - 0.2, mastH * 0.45, 0); sail.rotation.y = Math.PI / 2;
-    g.add(sail); sails.push(sail);
-    mastTops.push([-L * 0.05, mastH * 0.7]);
+    turtleFx = buildTurtle(g, def, L, W, mastH, mastMat, sails, mastTops, hullMat);
   } else {
     const mastCount = def.masts;
     const positions = mastCount === 3 ? [L * 0.25, -L * 0.02, -L * 0.27]
@@ -936,8 +1086,8 @@ export function buildShipMesh(def, opts = {}) {
   // 깃발
   const flagMat = new THREE.MeshStandardMaterial({ color: opts.flagColor ?? def.stripe, side: THREE.DoubleSide });
   const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.9, 6, 1), flagMat);
-  const topMast = def.modern ? mastTops[0][1] : def.wig ? L * 0.34 + 0.9 : def.turtle ? mastH * 0.7 : mastH;
-  const topX = def.modern ? mastTops[0][0] : def.wig ? -L * 0.4 : def.turtle ? -L * 0.05 : (def.masts === 3 ? -L * 0.02 : def.masts === 2 ? L * 0.2 : 0);
+  const topMast = def.modern ? mastTops[0][1] : def.wig ? L * 0.34 + 0.9 : def.turtle ? mastTops[0][1] : mastH;
+  const topX = def.modern ? mastTops[0][0] : def.wig ? -L * 0.4 : def.turtle ? mastTops[0][0] : (def.masts === 3 ? -L * 0.02 : def.masts === 2 ? L * 0.2 : 0);
   flag.position.set(topX - 0.8, topMast + 0.5, 0);
   flag.geometry.translate(-0.8, 0, 0);
   flag.position.x += 0.8;
@@ -953,9 +1103,9 @@ export function buildShipMesh(def, opts = {}) {
   const lanternPost = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 5), darkWood); lanternPost.position.set(-L * 0.4, sternH + 0.5, 0); g.add(lanternPost);
 
   // 부스트 화염
-  const fire = new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.5, 8), new THREE.MeshBasicMaterial({ color: 0xffa726, transparent: true, opacity: 0.85 }));
-  if (isModern) { fire.position.set(-L * 0.6, 1.0, 0); fire.rotation.z = Math.PI / 2; }
-  else if (def.turtle) { fire.position.set(L * 0.7 + 1.5, 1.0, 0); fire.rotation.z = -Math.PI / 2; }
+  const fire = turtleFx ? turtleFx.group : new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.5, 8), new THREE.MeshBasicMaterial({ color: 0xffa726, transparent: true, opacity: 0.85 }));
+  if (turtleFx) { /* 거북선의 불꽃은 buildTurtle 이 용머리와 꼬리 분사구에 달아 두었다 */ }
+  else if (isModern) { fire.position.set(-L * 0.6, 1.0, 0); fire.rotation.z = Math.PI / 2; }
   else { fire.position.set(-L * 0.55, -0.1, 0); fire.rotation.z = Math.PI / 2; }
   fire.visible = false;
   g.add(fire);
@@ -964,7 +1114,7 @@ export function buildShipMesh(def, opts = {}) {
   g.rotation.y = -Math.PI / 2;
   g.scale.setScalar(SHIP_SCALE);
   outer.add(g);
-  outer.userData = { sails, flag, lantern, fire, hull, length: L, inner: g, oars };
+  outer.userData = { sails, flag, lantern, fire, hull, length: L, inner: g, oars, turtleFx };
   return outer;
 }
 

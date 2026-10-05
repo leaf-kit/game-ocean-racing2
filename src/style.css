@@ -105,6 +105,19 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #061a2e; f
 
 #minimap { position: absolute; bottom: 24px; right: 280px; width: 170px; height: 170px; border-radius: 50%; border: 3px solid #c9a55a; background: rgba(8,20,32,0.7); }
 
+/* 현재 위치 띠 (아래 가운데, 함대 명령 버튼 위) */
+#loc-bar { position: absolute; bottom: 74px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: min(46vw, 600px); padding: 5px 16px 9px; border-radius: 18px; background: rgba(8,20,32,0.62); border: 1px solid rgba(201,165,90,0.55); color: #fff3d6; font-size: 15px; font-weight: 700; text-shadow: 0 1px 4px #000; white-space: nowrap; pointer-events: none; }
+#loc-bar.hidden { display: none; }
+#loc-bar.space { background: rgba(20,10,48,0.7); border-color: rgba(143,212,255,0.6); }
+#loc-route { color: #fff3d6; }
+#loc-dist { color: #ffe08a; font-variant-numeric: tabular-nums; }
+#loc-dir { color: #9fd8b8; font-size: 13px; }
+#loc-track { position: absolute; left: 16px; right: 16px; bottom: 3px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.15); overflow: hidden; }
+#loc-fill { height: 100%; width: 0; background: linear-gradient(90deg, #c9a55a, #ffe08a); }
+#loc-bar.pulse { animation: locPulse 0.9s ease-out; }
+@keyframes locPulse { 0% { box-shadow: 0 0 0 0 rgba(255,224,138,0.8); } 100% { box-shadow: 0 0 0 14px rgba(255,224,138,0); } }
+@media (max-width: 760px) { #loc-bar { bottom: auto; top: 44px; font-size: 12px; padding: 3px 10px 7px; max-width: 70vw; } #loc-dir { display: none; } }
+
 #center-msg { position: absolute; top: 28%; left: 50%; transform: translate(-50%, -50%); font-family: 'Cinzel', 'Noto Serif KR', serif; font-size: 96px; font-weight: 900; color: #ffe08a; text-shadow: 0 0 30px rgba(255,224,138,0.7), 0 6px 0 #6b4a1a; opacity: 0; }
 #center-msg.pop { animation: pop 0.9s ease-out; }
 @keyframes pop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); } 20% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
@@ -973,6 +986,92 @@ body.cs-on #lang-bar, body.cs-on #music-widget, body.cs-on #top-menu { display: 
 .pad-dive { border-color: #5fe0d8; color: #5fe0d8; }
 .pad-dive.on { background: rgba(95,224,216,0.5); color: #06202a; }
 body.diving .speed-lines { opacity: 0 !important; }
+
+/* ===================== 접현과 일기토 결투 화면 (boarding.js) ===================== */
+/* 접현 알림: 라이벌 배에 붙었을 때 */
+#board-prompt { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); z-index: 34; padding: 9px 20px; font-size: 18px; font-weight: 800; color: #fff3d6; background: linear-gradient(180deg, rgba(140,30,20,0.95), rgba(80,14,10,0.95)); border: 2px solid #ffd27a; border-radius: 26px; box-shadow: 0 0 22px rgba(255,120,60,0.7); cursor: pointer; animation: bpPulse 0.8s ease-in-out infinite alternate; white-space: nowrap; font-family: inherit; }
+#board-prompt.hidden { display: none; }
+#board-prompt b { color: #ffe08a; }
+#board-prompt span { margin-left: 10px; padding: 2px 10px; border-radius: 12px; background: rgba(0,0,0,0.35); }
+#board-prompt kbd { font-family: inherit; padding: 0 6px; border: 1px solid #ffe08a; border-radius: 4px; margin-left: 4px; }
+@keyframes bpPulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.06); } }
+
+/* 접현 메뉴 */
+#board-menu { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(3,8,16,0.6); backdrop-filter: blur(3px); padding: 16px; }
+#board-menu.hidden { display: none; }
+/* 전리품: 진 배를 나포할지 버릴지 */
+#spoils-menu { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(3,8,16,0.6); backdrop-filter: blur(3px); padding: 16px; }
+#spoils-menu.hidden { display: none; }
+.bm-card.spoils { border-color: #ffd54f; }
+.bm-opts button[data-c="capture"] { border-color: #ffd54f; background: rgba(201,165,90,0.22); }
+.bm-opts button[data-c="scuttle"] { border-color: #ff8b6b; }
+.bm-card { width: min(520px, 94vw); background: linear-gradient(180deg, #1c2c40, #0e1824); border: 2px solid #c9a55a; border-radius: 12px; padding: 18px 20px; box-shadow: 0 12px 50px rgba(0,0,0,0.7); color: #f2e6c8; animation: fadein 0.25s ease; }
+.bm-head { display: flex; gap: 14px; align-items: center; }
+.bm-portrait { width: 76px; height: 76px; border-radius: 50%; overflow: hidden; border: 3px solid #c0392b; flex: none; display: flex; align-items: center; justify-content: center; background: #2a1a12; font-size: 40px; }
+.bm-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.bm-kicker { font-size: 12px; color: #ff9a7a; letter-spacing: 1px; }
+.bm-name { font-size: 24px; font-weight: 900; color: #ffe08a; }
+.bm-ship { font-size: 13px; color: #c9b88a; }
+.bm-text { margin: 12px 0; font-size: 14px; line-height: 1.5; color: #e6d7b0; }
+.bm-opts { display: flex; flex-direction: column; gap: 8px; }
+.bm-opts button { position: relative; text-align: left; padding: 10px 40px 10px 14px; border-radius: 8px; border: 1px solid rgba(201,165,90,0.6); background: rgba(255,255,255,0.05); color: #fff3d6; cursor: pointer; font-family: inherit; }
+.bm-opts button:hover, .bm-opts button:focus-visible { background: rgba(201,165,90,0.22); border-color: #ffe08a; }
+.bm-opts button[data-c="duel"] { border-color: #ff8b6b; background: rgba(192,57,43,0.25); }
+.bm-opts b { display: block; font-size: 16px; }
+.bm-opts span { display: block; font-size: 12px; color: #c9b88a; margin-top: 2px; }
+.bm-opts i { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 12px; padding: 1px 7px; border: 1px solid #c9a55a; border-radius: 4px; color: #c9a55a; }
+
+/* 일기토 전용 화면 */
+#duel-screen { position: fixed; inset: 0; z-index: 72; background: #05080f; color: #fff3d6; overflow: hidden; animation: fadein 0.35s ease; }
+#duel-screen.hidden { display: none; }
+#duel-canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.duel-title { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-family: 'Cinzel', 'Noto Serif KR', serif; font-size: 34px; font-weight: 900; letter-spacing: 6px; color: #ffe08a; text-shadow: 0 0 18px rgba(255,140,60,0.9), 0 3px 0 #5a1a0a; white-space: nowrap; }
+.duel-title small { display: block; text-align: center; font-size: 14px; letter-spacing: 2px; color: #ffd2b0; }
+.duel-side { position: absolute; top: 16px; display: flex; gap: 10px; align-items: center; width: min(34vw, 340px); }
+.duel-side.left { left: 16px; }
+.duel-side.right { right: 16px; flex-direction: row-reverse; text-align: right; }
+.ds-portrait { width: 64px; height: 64px; flex: none; border-radius: 50%; overflow: hidden; border: 3px solid #ffe08a; background: #2a1a12; display: flex; align-items: center; justify-content: center; font-size: 34px; }
+.duel-side.right .ds-portrait { border-color: #ff8b6b; }
+.ds-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.ds-info { flex: 1; min-width: 0; }
+.ds-name { font-size: 17px; font-weight: 900; text-shadow: 0 2px 4px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-hp { position: relative; height: 16px; margin-top: 4px; border-radius: 8px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.35); overflow: hidden; }
+.ds-hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #4ad07a, #c8f07a); transition: width 0.4s ease; }
+.duel-side.right .ds-hp-fill { margin-left: auto; background: linear-gradient(270deg, #ff6a4a, #ffb36a); }
+.ds-hp span { position: absolute; inset: 0; font-size: 11px; font-weight: 800; line-height: 16px; text-align: center; text-shadow: 0 1px 2px #000; }
+.ds-ki { font-size: 12px; margin-top: 3px; color: #ffd2b0; text-shadow: 0 1px 3px #000; }
+.duel-tell { position: absolute; top: 104px; left: 50%; transform: translateX(-50%); max-width: 80vw; padding: 7px 18px; border-radius: 20px; background: rgba(10,14,26,0.72); border: 1px solid rgba(255,210,122,0.6); font-size: 17px; font-weight: 700; color: #ffe08a; white-space: nowrap; }
+.duel-tell:empty { display: none; }
+.duel-tell.blank { color: #a8b4c8; border-color: rgba(168,180,200,0.4); }
+.duel-log { position: absolute; left: 50%; top: 146px; transform: translateX(-50%); width: min(720px, 92vw); text-align: center; font-size: 15px; text-shadow: 0 2px 4px #000; }
+.duel-log div { padding: 1px 0; opacity: 0.5; font-size: 13px; }
+.duel-log div:first-child { opacity: 1; font-size: 17px; font-weight: 700; }
+.duel-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 16px 14px; background: linear-gradient(0deg, rgba(5,8,15,0.9), rgba(5,8,15,0)); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.duel-timer { width: min(520px, 90vw); height: 5px; border-radius: 3px; background: rgba(255,255,255,0.15); overflow: hidden; }
+#duel-timer-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff6a4a, #ffe08a); }
+.duel-cmds { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.dc-btn { position: relative; width: 112px; padding: 9px 6px 7px; border-radius: 10px; border: 2px solid #c9a55a; background: linear-gradient(180deg, rgba(60,40,20,0.95), rgba(30,18,8,0.95)); color: #fff3d6; cursor: pointer; font-family: inherit; transition: transform 0.1s; }
+.dc-btn:hover:not(:disabled) { transform: translateY(-3px); border-color: #ffe08a; box-shadow: 0 0 14px rgba(255,210,122,0.5); }
+.dc-btn:disabled { opacity: 0.45; cursor: default; }
+.dc-btn b { display: block; font-size: 26px; }
+.dc-btn span { font-size: 15px; font-weight: 800; }
+.dc-btn i { position: absolute; top: 4px; right: 6px; font-style: normal; font-size: 11px; color: #c9a55a; }
+.dc-btn.flee { width: 86px; border-color: #7a8a9a; background: rgba(30,36,46,0.9); }
+.duel-rule { font-size: 12px; color: #c9b88a; text-shadow: 0 1px 2px #000; text-align: center; }
+.duel-result { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(3,6,12,0.55); animation: fadein 0.4s ease; text-align: center; padding: 16px; }
+.duel-result.hidden { display: none; }
+.dr-title { font-family: 'Cinzel', 'Noto Serif KR', serif; font-size: 72px; font-weight: 900; letter-spacing: 10px; color: #ffe08a; text-shadow: 0 0 30px rgba(255,180,60,0.9), 0 5px 0 #5a3a0a; }
+.duel-result.lose .dr-title { color: #ff8b6b; text-shadow: 0 0 30px rgba(255,60,40,0.8), 0 5px 0 #4a0a0a; }
+.duel-result.retreat .dr-title { color: #b8c8d8; text-shadow: 0 3px 0 #1a2a3a; }
+.dr-sub { max-width: 560px; font-size: 17px; line-height: 1.5; text-shadow: 0 2px 4px #000; }
+#dr-btn { margin-top: 6px; padding: 11px 26px; border-radius: 24px; border: 2px solid #ffe08a; background: rgba(201,165,90,0.25); color: #fff3d6; font-size: 17px; font-weight: 800; cursor: pointer; font-family: inherit; }
+#dr-btn:hover { background: rgba(201,165,90,0.45); }
+@media (max-width: 760px) {
+  .duel-title { font-size: 22px; top: 86px; } .duel-side { width: 44vw; } .ds-portrait { width: 44px; height: 44px; font-size: 24px; }
+  .ds-name { font-size: 13px; } .duel-tell { top: 136px; font-size: 13px; white-space: normal; text-align: center; }
+  .dc-btn { width: 76px; padding: 6px 4px; } .dc-btn b { font-size: 20px; } .dc-btn span { font-size: 12px; } .dc-btn.flee { width: 64px; }
+  .duel-log { top: 172px; font-size: 12px; } .dr-title { font-size: 44px; } #board-prompt { font-size: 14px; bottom: 150px; }
+}
 
 /* ---------- 일기토 ---------- */
 /* 표찰: 앞서 가는 배 위에 뜬다. 3D 화면 위에 올라앉은 DOM 버튼이므로

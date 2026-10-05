@@ -12,10 +12,12 @@ export const WAVES = [
 for (const w of WAVES) { const l = Math.hypot(w.dx, w.dz); w.dx /= l; w.dz /= l; }
 
 // 바다 전역 상태: storm 0~1 (파도 증폭), flash 0~1 (번개 섬광)
-export const SEA = { storm: 0, flash: 0 };
+// flat: 우주 맵. 물이 아니라 허공이므로 파도가 없고 배는 평평하게 떠간다.
+export const SEA = { storm: 0, flash: 0, flat: false };
 const STORM_K = (Math.PI * 2) / 110;
 
 export function waveHeight(x, z, t) {
+  if (SEA.flat) return 0;
   let h = 0;
   const m = 1 + SEA.storm * 2.0;
   for (const w of WAVES) {
@@ -115,6 +117,59 @@ const oceanVert = /* glsl */`
     gl_Position = projectionMatrix * viewMatrix * wp;
   }
 `;
+// ---------- 우주 맵의 바닥: 물이 아니라 끝없는 허공 ----------
+// 평면은 그대로 두되 파도가 없고, 그 '아래'로 별이 깊이별로 펼쳐진다.
+// 시선 방향으로 평면 아래를 들여다본 자리에서 별을 뽑으므로 층마다 시차가 생겨 깊이가 느껴진다.
+const spaceVert = /* glsl */`
+  varying vec3 vWorldPos;
+  void main() {
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
+const spaceFrag = /* glsl */`
+  uniform float uTime, uFogNear, uFogFar;
+  uniform vec3 uFog, uCam;
+  varying vec3 vWorldPos;
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+  }
+  float fbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
+  vec3 stars(vec2 p, float thresh, float size, float tw) {
+    vec2 id = floor(p), f = fract(p) - 0.5;
+    float h = hash(id);
+    if (h < thresh) return vec3(0.0);
+    vec2 off = vec2(hash(id + 3.1), hash(id + 7.7)) - 0.5;
+    float d = length(f - off * 0.7);
+    float b = smoothstep(size, 0.0, d) * (0.65 + 0.35 * sin(uTime * tw + h * 40.0));
+    return mix(vec3(0.75, 0.82, 1.0), vec3(1.0, 0.86, 0.7), hash(id + 1.3)) * b;
+  }
+  void main() {
+    vec3 V = normalize(vWorldPos - uCam);
+    float down = max(0.06, -V.y);
+    // 깊이가 다른 세 겹의 별 + 그 아래 성운
+    vec2 p1 = vWorldPos.xz + V.xz / down * 120.0;
+    vec2 p2 = vWorldPos.xz + V.xz / down * 420.0;
+    vec2 p3 = vWorldPos.xz + V.xz / down * 1200.0;
+    vec3 col = vec3(0.012, 0.006, 0.035);
+    float neb = fbm(p3 * 0.0012 + vec2(uTime * 0.004, 0.0));
+    float neb2 = fbm(p3 * 0.0021 + 7.3);
+    col += vec3(0.32, 0.10, 0.48) * smoothstep(0.45, 0.85, neb) * 0.55;
+    col += vec3(0.05, 0.30, 0.42) * smoothstep(0.5, 0.9, neb2) * 0.45;
+    col += stars(p3 * 0.03, 0.80, 0.10, 1.3) * 0.7;
+    col += stars(p2 * 0.022, 0.86, 0.09, 2.1) * 0.9;
+    col += stars(p1 * 0.018, 0.93, 0.07, 3.0) * 1.2;
+    // 바로 아래를 내려다볼수록 조금 더 깊고 어둡게, 비스듬할수록 은하수처럼 옅게 밝힌다
+    col += vec3(0.06, 0.04, 0.12) * (1.0 - down);
+    float dist = length(vWorldPos - uCam);
+    col = mix(col, uFog, smoothstep(uFogNear, uFogFar, dist));
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
 const oceanFrag = /* glsl */`
   uniform vec3 uDeep, uShallow, uSky, uSkyTop, uFog, uSunColor, uSunDir, uReef;
   uniform float uFogNear, uFogFar, uTime, uSpecPow, uStorm, uFlash;
@@ -288,7 +343,11 @@ export class Environment {
     this.map = map;
     this.tint = map && map.tint ? { deep: new THREE.Color(map.tint.deep), shallow: new THREE.Color(map.tint.shallow) } : null;
     this.fogMul = map && map.fog ? map.fog : 1;
+    this.space = !!(map && map.space);
+    this.tintK = this.space ? 0.8 : 0.55;   // 우주는 맵 색을 더 진하게 섞는다
     this.preset = (presetName === 'cycle' ? lerpPreset(0) : TIME_PRESETS[presetName]) || TIME_PRESETS.day;
+    // 우주: 언제나 칠흑 같은 하늘에 별, 작고 하얀 해
+    if (this.space) this.preset = { ...TIME_PRESETS.night, skyTop: 0x000006, skyHorizon: 0x1a0c3c, fog: 0x0c0626, stars: 1, sunDisc: 0xffffff, sunSize: 38, sunColor: 0xe4e8ff, sunIntensity: 1.6, ambient: 0.55, hemiGround: 0x0a0628, sunPos: new THREE.Vector3(-0.5, 0.45, 0.6).normalize() };
     const p = this.preset;
 
     // 바다
@@ -304,12 +363,16 @@ export class Environment {
       uShallowN: { value: 0 },
       uShallows: { value: Array.from({ length: SHALLOW_MAX }, () => new THREE.Vector3()) },
     };
-    const oceanGeo = new THREE.PlaneGeometry(size, size, 360, 360);
+    SEA.flat = this.space;
+    this.oceanUniforms.uCam = { value: new THREE.Vector3() };
+    const oceanGeo = new THREE.PlaneGeometry(size, size, this.space ? 1 : 360, this.space ? 1 : 360);
     oceanGeo.rotateX(-Math.PI / 2);
-    const oceanMat = new THREE.ShaderMaterial({
-      uniforms: this.oceanUniforms, vertexShader: oceanVert,
-      fragmentShader: oceanFrag.replace(/SHALLOW_MAX/g, String(SHALLOW_MAX)),
-    });
+    const oceanMat = this.space
+      ? new THREE.ShaderMaterial({ uniforms: this.oceanUniforms, vertexShader: spaceVert, fragmentShader: spaceFrag })
+      : new THREE.ShaderMaterial({
+        uniforms: this.oceanUniforms, vertexShader: oceanVert,
+        fragmentShader: oceanFrag.replace(/SHALLOW_MAX/g, String(SHALLOW_MAX)),
+      });
     this.ocean = new THREE.Mesh(oceanGeo, oceanMat);
     this.ocean.frustumCulled = false;
     scene.add(this.ocean);
@@ -338,7 +401,7 @@ export class Environment {
     this.clouds = new THREE.Group();
     const cloudTex = makeCloudTexture();
     const cloudColor = presetName === 'night' ? 0x2a3a55 : presetName === 'sunset' ? 0xffc4a0 : 0xffffff;
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < (this.space ? 0 : 40); i++) {
       const m = new THREE.SpriteMaterial({ map: cloudTex, color: cloudColor, transparent: true, opacity: presetName === 'night' ? 0.5 : 0.85, depthWrite: false, fog: true });
       const s = new THREE.Sprite(m);
       const a = Math.random() * Math.PI * 2, r = 700 + Math.random() * 1200;
@@ -349,6 +412,9 @@ export class Environment {
       this.clouds.add(s);
     }
     scene.add(this.clouds);
+    // 우주: 하늘에 행성을 띄운다 (하늘처럼 카메라를 따라다닌다)
+    this.planets = this.space ? makePlanets() : null;
+    if (this.planets) scene.add(this.planets);
     this._stormCloud = new THREE.Color(0x2a2d33);
     this._stormFog = new THREE.Color(0x3a3f47);
     this._stormSky = new THREE.Color(0x232830);
@@ -380,7 +446,7 @@ export class Environment {
 
   // 맵마다 다른 여울 색. 열대는 에메랄드, 극지는 옅은 하늘빛, 바위섬은 청록빛.
   _reefColor(map) {
-    const byStyle = { tropical: 0x3fe0c8, atoll: 0x4fe8d0, rocky: 0x2fc0c4, ice: 0x9fe8f5, coast: 0x35b8c0, harbor: 0x3aa8a0, river: 0x7fc47a };
+    const byStyle = { tropical: 0x3fe0c8, atoll: 0x4fe8d0, rocky: 0x2fc0c4, ice: 0x9fe8f5, coast: 0x35b8c0, harbor: 0x3aa8a0, river: 0x7fc47a, karst: 0x3fd8b4, space: 0x7a5ae8 };
     return new THREE.Color(byStyle[map && map.style] || 0x3fd8c8);
   }
 
@@ -392,8 +458,8 @@ export class Environment {
     this.oceanUniforms.uShallowN.value = list.length;
   }
   // 맵 물빛: 프리셋 색과 맵 색을 섞는다
-  _tintDeep(c) { const col = new THREE.Color(c); return this.tint ? col.lerp(this.tint.deep, 0.55) : col; }
-  _tintShallow(c) { const col = new THREE.Color(c); return this.tint ? col.lerp(this.tint.shallow, 0.55) : col; }
+  _tintDeep(c) { const col = new THREE.Color(c); return this.tint ? col.lerp(this.tint.deep, this.tintK) : col; }
+  _tintShallow(c) { const col = new THREE.Color(c); return this.tint ? col.lerp(this.tint.shallow, this.tintK) : col; }
 
   // 낮→밤 순환: u 0~1. 반환값은 현재 랜턴 밝기(0~1.6)
   setPhase(u) {
@@ -416,6 +482,7 @@ export class Environment {
 
   update(t, cameraPos) {
     this.oceanUniforms.uTime.value = t;
+    this.oceanUniforms.uCam.value.copy(cameraPos);
     this.skyUniforms.uTime.value = t;
     // 바다와 하늘은 카메라를 따라다님 (무한 바다 효과)
     this.ocean.position.x = Math.round(cameraPos.x / 20) * 20;
@@ -423,7 +490,69 @@ export class Environment {
     this.sky.position.copy(cameraPos);
     this.clouds.position.x = cameraPos.x * 0.9;
     this.clouds.position.z = cameraPos.z * 0.9;
+    if (this.planets) {
+      this.planets.position.copy(cameraPos);
+      for (const pl of this.planets.children) if (pl.userData.spin) pl.rotation.y = t * pl.userData.spin;
+    }
   }
+}
+
+// ---------- 우주 맵의 행성 ----------
+// 캔버스로 무늬를 그린 공. 안개를 받지 않고, 해가 비치는 쪽만 밝다.
+function planetTexture(kind) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+  const x = c.getContext('2d');
+  const blob = (col, n, rmin, rmax) => { x.fillStyle = col; for (let i = 0; i < n; i++) { x.beginPath(); x.ellipse(Math.random() * 256, 14 + Math.random() * 100, rmin + Math.random() * (rmax - rmin), (rmin + Math.random() * (rmax - rmin)) * 0.6, Math.random() * 3, 0, Math.PI * 2); x.fill(); } };
+  if (kind === 'earth') {
+    x.fillStyle = '#1d5fbf'; x.fillRect(0, 0, 256, 128);
+    blob('#3f8a3a', 9, 10, 28); blob('#c9b07a', 4, 6, 14);
+    x.fillStyle = '#f4f8ff'; x.fillRect(0, 0, 256, 9); x.fillRect(0, 119, 256, 9);
+    x.globalAlpha = 0.5; blob('#ffffff', 22, 4, 16); x.globalAlpha = 1;
+  } else if (kind === 'moon') {
+    x.fillStyle = '#b8b8b4'; x.fillRect(0, 0, 256, 128);
+    blob('#8a8a86', 10, 6, 20); blob('#d4d4d0', 18, 2, 5);
+  } else if (kind === 'mars') {
+    x.fillStyle = '#c0583a'; x.fillRect(0, 0, 256, 128);
+    blob('#8a3a24', 10, 6, 22); blob('#e08a5a', 8, 4, 12);
+    x.fillStyle = '#f4ece4'; x.fillRect(0, 0, 256, 6);
+  } else if (kind === 'jupiter') {
+    const cols = ['#e8d2b0', '#c8946a', '#f0e2c8', '#a8704a', '#e2c8a0', '#c08a60', '#f2e6d0'];
+    for (let i = 0; i < 16; i++) { x.fillStyle = cols[i % cols.length]; x.fillRect(0, i * 8, 256, 8 + Math.random() * 4); }
+    x.fillStyle = '#b0442a'; x.beginPath(); x.ellipse(170, 82, 16, 8, 0, 0, Math.PI * 2); x.fill();
+  } else {
+    const cols = ['#e8d8a8', '#d8c088', '#f0e4c0', '#c8b078'];
+    for (let i = 0; i < 16; i++) { x.fillStyle = cols[i % cols.length]; x.fillRect(0, i * 8, 256, 9); }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function makePlanets() {
+  const g = new THREE.Group();
+  const add = (kind, r, dir, spin = 0.02) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 24), new THREE.MeshLambertMaterial({ map: planetTexture(kind), fog: false }));
+    m.position.copy(dir.normalize().multiplyScalar(2050));
+    m.userData.spin = spin;
+    g.add(m);
+    return m;
+  };
+  add('earth', 230, new THREE.Vector3(-0.75, 0.28, -0.6), 0.015);
+  add('moon', 70, new THREE.Vector3(-0.35, 0.5, -0.8), 0.01);
+  add('mars', 110, new THREE.Vector3(0.8, 0.22, -0.45), 0.02);
+  add('jupiter', 260, new THREE.Vector3(0.55, 0.42, 0.75), 0.03);
+  const sat = add('saturn', 150, new THREE.Vector3(-0.7, 0.32, 0.7), 0.025);
+  // 토성 고리
+  const ringGeo = new THREE.RingGeometry(190, 330, 64);
+  const rc = document.createElement('canvas'); rc.width = 128; rc.height = 4;
+  const rx = rc.getContext('2d');
+  for (let i = 0; i < 128; i++) { rx.fillStyle = `rgba(230,210,160,${(0.25 + 0.6 * Math.abs(Math.sin(i * 0.37))) * (i > 70 && i < 78 ? 0.1 : 1)})`; rx.fillRect(i, 0, 1, 4); }
+  const rt = new THREE.CanvasTexture(rc); rt.colorSpace = THREE.SRGBColorSpace;
+  // RingGeometry 의 UV 를 반지름 방향으로 바꿔 줄무늬가 동심원이 되게
+  const pos = ringGeo.attributes.position, uv = ringGeo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, (Math.hypot(pos.getX(i), pos.getY(i)) - 190) / 140, 0.5);
+  const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ map: rt, side: THREE.DoubleSide, transparent: true, fog: false, depthWrite: false }));
+  ring.position.copy(sat.position); ring.rotation.set(-1.2, 0.3, 0.2);
+  g.add(ring);
+  return g;
 }
 
 function makeCloudTexture() {

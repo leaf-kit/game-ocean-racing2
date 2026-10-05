@@ -40,6 +40,7 @@ export class Particles {
     this.life = new Float32Array(MAX);
     this.maxLife = new Float32Array(MAX);
     this.grav = new Float32Array(MAX);
+    this.grow = new Float32Array(MAX);   // 초당 커지는 크기 (연기가 퍼진다)
     this.geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     this.geo.setAttribute('aColor', new THREE.BufferAttribute(this.col, 3));
     this.geo.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1));
@@ -55,11 +56,11 @@ export class Particles {
     this._c = new THREE.Color();
   }
 
-  spawn(x, y, z, vx, vy, vz, life, size, color, grav = 0) {
+  spawn(x, y, z, vx, vy, vz, life, size, color, grav = 0, grow = 0) {
     const i = this.next; this.next = (this.next + 1) % MAX;
     this.pos[i * 3] = x; this.pos[i * 3 + 1] = y; this.pos[i * 3 + 2] = z;
     this.vel[i * 3] = vx; this.vel[i * 3 + 1] = vy; this.vel[i * 3 + 2] = vz;
-    this.life[i] = life; this.maxLife[i] = life; this.size[i] = size; this.grav[i] = grav;
+    this.life[i] = life; this.maxLife[i] = life; this.size[i] = size; this.grav[i] = grav; this.grow[i] = grow;
     this._c.set(color);
     this.col[i * 3] = this._c.r; this.col[i * 3 + 1] = this._c.g; this.col[i * 3 + 2] = this._c.b;
     this.alpha[i] = 1;
@@ -83,6 +84,7 @@ export class Particles {
       this.pos[i * 3] += this.vel[i * 3] * dt;
       this.pos[i * 3 + 1] += this.vel[i * 3 + 1] * dt;
       this.pos[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
+      if (this.grow[i]) this.size[i] += this.grow[i] * dt;
       if (this.pos[i * 3 + 1] < -0.5 && this.grav[i] < 0) { this.life[i] = 0; }
       this.alpha[i] = Math.max(0, this.life[i] / this.maxLife[i]) * 0.7;
     }

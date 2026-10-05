@@ -1,26 +1,28 @@
 // 대항해시대 레이싱 - 메인 게임 루프
 import * as THREE from 'three';
-import { SHIPS, SHIP_CATEGORIES, AI_NAMES, buildShipMesh, renderShipPreview, pickAiName } from './ships.js?v=20261004a';
-import { Environment, TIME_PRESETS, waveHeight, SEA } from './ocean.js?v=20261004a';
-import { Track, TRACK_HALF_WIDTH, GUARD_OFFSET, CHECKPOINT_COUNT } from './track.js?v=20261004a';
-import { Boat } from './boat.js?v=20261004a';
-import { aiControl, difficultyParams } from './ai.js?v=20261004a';
-import { HUD, formatTime } from './hud.js?v=20261004a';
-import { Particles, Seagulls, Wakes } from './effects.js?v=20261004a';
-import { AudioManager } from './audio.js?v=20261004a';
-import { PORTS, TRIVIA, EVENTS, FIGURES as HIST_FIGURES, DISCOVERIES, MAP_ROUTES } from './history.js?v=20261004a';
-import { WORLD_ROUTE } from './worldmap.js?v=20261004a';
-import { t, LANG, setLang, applyStaticI18n, applyEnglishData, ordinal } from './i18n.js?v=20261004a';
-import { MAPS, DEFAULT_MAP, findMap } from './maps.js?v=20261004a';
-import { FIGURES, TRAITS, findFigure, portraitSrc, figName } from './figures.js?v=20261004a';
-import { Fleet, FORMATION_LIST, findFormation, SPACING_LIST, findSpacing, formationDepth, MAX_CONSORTS, ORDERS, applyOfficerTraits, freshTraits } from './fleet.js?v=20261004a';
-import { CHAPTERS, findChapter, chapterCount, MISSION_TYPES, goalText, meets, gradeOf, GRADE_COLOR } from './campaign.js?v=20261004a';
-import { SAVE, persist, addFame, recordChapter, markSeen, meetVerse, recordBond, grantTitle } from './save.js?v=20261004a';
-import { QUOTES as VERSES, findQuote as findVerse, stageOf, blankOut, MEMORIZED_AT } from './quotes.js?v=20261004a';
-import { Cutscene } from './story.js?v=20261004a';
-import { Wildlife, ANIMALS } from './wildlife.js?v=20261004a';
-import { Bukhang, BOND_FULL } from './bukhang.js?v=20261004a';
-import { Duel } from './duel.js?v=20261004a';
+import { SHIPS, SHIP_CATEGORIES, AI_NAMES, buildShipMesh, renderShipPreview, pickAiName } from './ships.js?v=20261005g';
+import { Environment, TIME_PRESETS, waveHeight, SEA } from './ocean.js?v=20261005g';
+import { Track, TRACK_HALF_WIDTH, GUARD_OFFSET, CHECKPOINT_COUNT } from './track.js?v=20261005g';
+import { Boat } from './boat.js?v=20261005g';
+import { aiControl, difficultyParams } from './ai.js?v=20261005g';
+import { HUD, formatTime } from './hud.js?v=20261005g';
+import { Particles, Seagulls, Wakes } from './effects.js?v=20261005g';
+import { AudioManager } from './audio.js?v=20261005g';
+import { PORTS, TRIVIA, EVENTS, FIGURES as HIST_FIGURES, DISCOVERIES, MAP_ROUTES } from './history.js?v=20261005g';
+import { WORLD_ROUTE } from './worldmap.js?v=20261005g';
+import { t, LANG, setLang, applyStaticI18n, applyEnglishData, ordinal } from './i18n.js?v=20261005g';
+import { MAPS, DEFAULT_MAP, findMap } from './maps.js?v=20261005g';
+import { FIGURES, TRAITS, findFigure, portraitSrc, figName } from './figures.js?v=20261005g';
+import { Fleet, FORMATION_LIST, findFormation, SPACING_LIST, findSpacing, formationDepth, MAX_CONSORTS, ORDERS, applyOfficerTraits, freshTraits } from './fleet.js?v=20261005g';
+import { CHAPTERS, findChapter, chapterCount, MISSION_TYPES, goalText, meets, gradeOf, GRADE_COLOR } from './campaign.js?v=20261005g';
+import { SAVE, persist, addFame, recordChapter, markSeen, meetVerse, recordBond, grantTitle } from './save.js?v=20261005g';
+import { QUOTES as VERSES, findQuote as findVerse, stageOf, blankOut, MEMORIZED_AT } from './quotes.js?v=20261005g';
+import { Cutscene } from './story.js?v=20261005g';
+import { Wildlife, ANIMALS } from './wildlife.js?v=20261005g';
+import { Bukhang, BOND_FULL } from './bukhang.js?v=20261005g';
+import { buildSigns, locationAt, fmtKm, portName } from './signs.js?v=20261005g';
+import { Duel } from './duel.js?v=20261005g';
+import { Boarding, DUEL_FIG, fighterOf } from './boarding.js?v=20261005g';
 
 applyEnglishData();
 applyStaticI18n();
@@ -135,6 +137,7 @@ const G = {
 };
 const COMBO_WINDOW = 4.0;
 const cutscene = new Cutscene();
+const boarding = new Boarding({ audio });   // 접현 메뉴와 턴제 결투 화면 (G.duel 은 앞선 배에 거는 기싸움)
 
 function freshStats() { return { nearMiss: 0, overtakes: 0, coins: 0, chests: 0, slipstreams: 0, perfectStart: false, maxCombo: 0, bestLap: Infinity, storms: 0, rankPts: 0, jumps: 0, loops: 0, warps: 0, fleetTime: 0, orders: 0 }; }
 // 미션 진행 상황. gradeOf()가 이 모양을 읽는다.
@@ -150,6 +153,9 @@ window.addEventListener('keydown', (e) => {
     else if (e.code === 'Escape') cutscene.finish();
     return;
   }
+  // 접현 메뉴와 일기토 화면은 키를 따로 받는다 (경주 조작은 멈춘다)
+  if (G.state === 'boardmenu' || G.state === 'boardduel' || G.state === 'spoils') { e.preventDefault(); boarding.key(e.code); return; }
+  if (e.code === 'KeyE' && G.state === 'racing' && G.board.target) { openBoardMenu(); return; }
   // 함대 명령 1 · 2 · 3
   if (G.state === 'racing' && G.fleet && G.fleet.size) {
     const ord = { Digit1: 'charge', Digit2: 'screen', Digit3: 'gather' }[e.code];
@@ -182,7 +188,7 @@ for (const btn of document.querySelectorAll('#touch-pad .pad-btn')) {
   btn.addEventListener('pointerdown', press); btn.addEventListener('pointerup', release); btn.addEventListener('pointercancel', release); btn.addEventListener('lostpointercapture', release);
   btn.addEventListener('contextmenu', (e) => e.preventDefault());
 }
-const isUiTarget = (el) => !!(el && el.closest && el.closest('#fleet-screen, #chapter-screen, #codex-screen, #result-screen, #title-screen, #cutscene, #lang-bar, #music-widget, #top-menu, #touch-pad, #btn-fire, #fleet-orders, #enter-gate, #duel-markers, #duel-prompt, select, button, input'));
+const isUiTarget = (el) => !!(el && el.closest && el.closest('#board-prompt, #board-menu, #duel-screen, #fleet-screen, #chapter-screen, #codex-screen, #result-screen, #title-screen, #cutscene, #lang-bar, #music-widget, #top-menu, #touch-pad, #btn-fire, #fleet-orders, #enter-gate, #duel-markers, #duel-prompt, select, button, input'));
 function ptrSteerFrom(x) {
   const w = window.innerWidth, c = w / 2, dead = w * 0.06;
   const d = x - c;
@@ -749,6 +755,8 @@ for (const btn of document.querySelectorAll('#fleet-orders .order-btn')) {
 
 // ---------- 레이스 준비 ----------
 function clearScene() {
+  // 이정표 글씨는 캔버스 텍스처라 재질과 따로 버린다
+  if (G.track && G.track.signTextures) for (const tx of G.track.signTextures) tx.dispose();
   scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose()); } });
   scene = new THREE.Scene();
 }
@@ -757,18 +765,24 @@ function resetStorm() {
   // 장에 지정된 폭풍 배수가 있으면 맵 기본값 위에 곱한다
   const sf = 1 / (((G.map && G.map.storm) || 1) * (G.stormMul || 1));
   G.storm = { state: 'calm', level: 0, timer: (22 + Math.random() * 12) * sf, lightning: 0, flash: 0, hitDuring: false, warned: false };
+  if (G.map && G.map.space) G.storm.timer = Infinity;   // 우주에는 비도 번개도 없다
   SEA.storm = 0; SEA.flash = 0;
+  audio.setStorm(0);
 }
 
 function buildWorld(tod, map = G.map) {
   clearScene();
   G.env = new Environment(scene, tod, 5000, map);
   G.track = new Track(scene, map);
+  // 기항지마다 환영 간판·이정표·거리 표지와 명소를 세운다 (섬 목록에 명소 터가 더해지므로 여울보다 먼저)
+  G.route = MAP_ROUTES[map.id] || WORLD_ROUTE;
+  buildSigns(G.track, G.route);
   // 섬 둘레에 얕은 여울을 깐다. 항구 맵은 섬이 없으므로 부두와 방파제를 같은 자리에 넣는다.
   G.env.setShallows(G.track.islands.length ? G.track.islands : G.track.structures);
   G.particles = new Particles(scene);
   G.wakes = new Wakes(scene);
   G.gulls = new Seagulls(scene, new THREE.Vector3(250, 0, 200), 12);
+  if (map.space) G.gulls.group.visible = false; // 우주에는 갈매기가 없다
   // 부캉이의 바다에만 사는 것들. 다른 맵에서는 만들지 않는다.
   if (map.wildlife) {
     G.wildlife = new Wildlife(scene, G.track, map.canal);
@@ -796,6 +810,7 @@ function startRace() {
   }
   let tod = ch ? ch.time : $('opt-time').value;
   if (tod === 'random') tod = ['day', 'sunset', 'night'][Math.floor(Math.random() * 3)];
+  if (G.map.space) tod = 'night'; // 우주에는 낮이 없다
   G.timeOfDay = tod;
   G.cycle = tod === 'cycle'; G.phase = 0;
 
@@ -827,7 +842,8 @@ function startRace() {
     scene.add(mesh);
     mesh.userData.lantern.intensity = (TIME_PRESETS[tod]?.lantern ?? 0) * 30;
     const b = new Boat(def, mesh, opts);
-    G.wakes.add(b, opts.isPlayer ? 0xfff0c8 : opts.flagColor === 0x7bed9f ? 0xd8ffe8 : 0xdff2ff);
+    // 우주에서는 물보라 대신 푸른 빛 꼬리를 남긴다
+    G.wakes.add(b, G.map.space ? (opts.isPlayer ? 0xffe08a : 0x8fd4ff) : opts.isPlayer ? 0xfff0c8 : opts.flagColor === 0x7bed9f ? 0xd8ffe8 : 0xdff2ff);
     G.boats.push(b);
     return b;
   };
@@ -848,7 +864,10 @@ function startRace() {
 
   // 라이벌
   for (let i = 0; i < nRivals; i++) {
-    mkBoat(rivalPool[i % rivalPool.length], { name: pickAiName(nameOrder[i % nameOrder.length]), color: AI_COLORS[i % AI_COLORS.length], skill: diff.skill });
+    const ni = nameOrder[i % nameOrder.length];
+    const rb = mkBoat(rivalPool[i % rivalPool.length], { name: pickAiName(ni), color: AI_COLORS[i % AI_COLORS.length], skill: diff.skill });
+    rb.figId = DUEL_FIG[ni % DUEL_FIG.length]; rb.rivalColor = AI_COLORS[i % AI_COLORS.length]; // 일기토 상대
+
   }
 
   G.fleet = new Fleet(flag, consorts, officers, SEL.formation, SEL.spacing);
@@ -876,9 +895,12 @@ function startRace() {
   G.guide = { stress: 0, led: 0, done: false, slowT: 0 };
   // 일기토 초기화. 지난 판의 나포·전복 표시도 함께 지운다.
   G.duel.reset(); G.duelPressT = 0; G.capsizeT = 0;
-  for (const b of G.boats) { b.captured = false; b.capsized = false; }
+  for (const b of G.boats) { b.captured = false; b.capsized = false; b.scuttled = false; b.taken = false; }
+  G.lootT = 0; G.lossKind = null;
   hud.clearDuelMarkers(); hud.hideDuelPrompt(); hud.setDuelBar(null);
   if (G.shark) G.shark.reset(true);
+  G.locNote = null;
+  G.board = { target: null, lostT: 0, cd: 0 };
   G.raceTime = 0; G.countdown = 3.6; G.state = 'countdown'; G.camMode = 0; G.finishTimer = 0; G.krakenActive = false; G.lastLapTime = 0;
   G.countStep = 4;
   G.score = 0; G.combo = 0; G.comboTimer = 0; G.stats = freshStats();
@@ -1001,6 +1023,7 @@ function missionTreasure(points) {
 }
 
 function endRace() {
+  boarding.close();
   G.duel.reset(); G.duelPressT = 0;
   hud.clearDuelMarkers(); hud.hideDuelPrompt(); hud.setDuelBar(null);
   G.state = 'select'; hud.hide(); audio.setSpeed(0, false); resetStorm();
@@ -1099,7 +1122,7 @@ function updateWind(dt) {
     w.gustTimer = 20 + Math.random() * 15;
     w.gust = 6;
     w.targetDir += (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.9);
-    if (G.state === 'racing') hud.event(t('ev.gust'), 3000);
+    if (G.state === 'racing') { hud.event(t('ev.gust'), 3000); audio.gust(); }   // 돌풍: 바람이 휘몰아치고 돛이 펄럭
   }
   if (w.gust > 0) w.gust -= dt;
   w.targetDir += (Math.random() - 0.5) * 0.02 * dt;
@@ -1150,6 +1173,7 @@ function updateStorm(dt) {
   SEA.storm = S.level; SEA.flash = S.flash;
   G.env.setStorm(S.level, S.flash);
   hud.setStorm(S.level, S.flash, S.state === 'warn');
+  audio.setStorm(S.level);
   // ----- 폭풍 연출 -----
   if (S.level > 0.05) {
     const f = _f; camera.getWorldDirection(f);
@@ -1276,6 +1300,7 @@ function updateEffects(dt) {
   // 오로라: 서서히 켜지고 꺼짐
   let auroraT = Math.max(0, Math.min(1, F.aurora / 3, (25 - F.aurora) / 3));
   if (G.map && G.map.aurora) auroraT = Math.max(auroraT, Math.max(0, (G.phase - 0.55) * 1.6) * 0.7); // 극지 맵: 밤이면 오로라
+  if (G.map && G.map.space) auroraT = Math.max(auroraT, 0.5); // 우주: 은하수 성운이 늘 하늘에 걸려 있다
   G.env.setAurora(auroraT);
   // 세인트 엘모의 불: 돛대 끝 푸른 빛 + 불꽃 입자
   if (F.elmo > 0) {
@@ -1414,6 +1439,133 @@ function updateProgressCore(boat, idx, dist) {
   boat.progress = boat.lap * tr.totalLength + cum;
 }
 
+// ---------- 접현과 일기토 ----------
+// 라이벌 배에 나란히 붙으면 접현 알림. E(또는 알림 버튼)로 접현 메뉴를 연다.
+const duelBlocked = () => G.player.def.freeJump || (G.mode === 'campaign' && G.chapter?.type === 'guide') || G.autoPlayer;
+function playerSword() { return Math.round(62 + Math.min(18, (SAVE.fame || 0) / 400)); }
+function updateBoarding(dt) {
+  const B = G.board, p = G.player;
+  if (B.cd > 0) B.cd -= dt;
+  let best = null, bestD = Infinity;
+  if (G.state === 'racing' && G.raceTime > 8 && !p.finished && !p.airborne && !p.captured && !p.capsized && !G.duel.busy && B.cd <= 0 && !duelBlocked()) { // 출발 그리드에서는 나란히 서 있으니 8초 뒤부터
+    for (const b of G.boats) {
+      if (b === p || b.consort || b.finished || b.airborne || b.dueled || b.captured || b.capsized || (b.subdued || 0) > 0 || (b.boardCd || 0) > G.raceTime) continue;
+      const d = Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z);
+      const reach = (p.phys.radius + b.phys.radius) * 0.55 + 9;   // 뱃전이 거의 닿을 만큼
+      if (d < reach && d < bestD) { best = b; bestD = d; }
+    }
+  }
+  // 잠깐 떨어져도 알림이 깜빡이지 않도록 1초 여유
+  if (best) { B.target = best; B.lostT = 1; }
+  else if (B.target) { B.lostT -= dt; if (B.lostT <= 0 || G.state !== 'racing') B.target = null; }
+  if (B.target) boarding.showPrompt(B.target); else boarding.hidePrompt();
+}
+boarding.onStart = () => { G.state = 'boardduel'; }; // 전용 화면으로 넘어간다 (바다 장면은 그리지 않는다)
+boarding.onPromptClick = () => { if (G.state === 'racing' && G.board && G.board.target) openBoardMenu(); };
+
+function openBoardMenu() {
+  const r = G.board.target, p = G.player;
+  if (!r) return;
+  hud.setDuelMarkers([]);   // 앞선 배에 거는 기싸움 표찰은 접현하는 동안 감춘다
+  G.state = 'boardmenu'; G.keys = {}; PTR.down = false; PTR.boost = false; p.boosting = false;
+  audio.setSpeed(0, false);
+  const rs = fighterOf(r.figId).sword, ps = playerSword();
+  // 항복 권유: 상대가 순위가 낮을수록, 내 검술이 높을수록 잘 먹힌다
+  const demandChance = Math.max(0.08, Math.min(0.7, 0.25 + (r.rank - p.rank) * 0.08 + (ps - rs) / 200));
+  boarding.openMenu({
+    player: { name: p.name, figId: SEL.admiral, sword: ps },
+    rival: { name: r.name, figId: r.figId, ship: r.def.name, sword: rs, rank: r.rank, color: r.rivalColor },
+    demandChance,
+  }, (choice, res) => afterBoarding(r, choice, res, demandChance));
+}
+
+// 메뉴/일기토가 끝난 뒤 경주에 결과를 반영하고 다시 달린다
+function afterBoarding(r, choice, res, demandChance) {
+  const p = G.player;
+  G.state = 'racing'; G.board.target = null; G.board.cd = 4; boarding.hidePrompt();
+  G.keys = {}; clock.getDelta(); // 멈춰 있던 시간만큼 한 프레임이 튀지 않게
+  // 두 배를 살짝 떼어 놓는다
+  const dx = r.pos.x - p.pos.x, dz = r.pos.z - p.pos.z, d = Math.hypot(dx, dz) || 1;
+  r.pos.x += (dx / d) * 6; r.pos.z += (dz / d) * 6;
+  if (choice === 'leave') { r.boardCd = G.raceTime + 8; hud.event(t('board.leave', { name: r.name }), 1600); return; }
+  if (choice === 'demand') {
+    r.boardCd = G.raceTime + 15;
+    if (Math.random() < demandChance) {
+      r.dueled = true;
+      award(400, t('board.demandOk'), '#ffd54f', () => audio.perfect());
+      hud.event(t('board.demandOkEv', { name: r.name }), 2400);
+      offerSpoils(r, 'board');              // 항복한 배도 나포하거나 버린다
+    } else {
+      r.turbo = Math.max(r.turbo, 2.2);
+      hud.event(t('board.demandNo', { name: r.name }), 2400);
+    }
+    return;
+  }
+  // 일기토 결과
+  G.stats.duels = (G.stats.duels || 0) + 1;
+  if (res.result === 'win') {
+    r.dueled = true;
+    G.stats.duelWins = (G.stats.duelWins || 0) + 1;
+    award(900 + Math.round(res.hp * 5), t('board.winPop'), '#ffd54f', () => audio.perfect());
+    hud.centerMsg(t('board.winCenter'), '#ffe08a');
+    // 추격·결투 미션에서는 일기토 승리가 명중 세 발 몫이다
+    for (let k = 0; k < 3; k++) missionHit();
+    offerSpoils(r, 'board');                // 진 배를 나포할지 버릴지 고른다. 어느 쪽이든 경주에서 빠진다
+  } else if (res.result === 'lose') {
+    playerTaken(r);                         // 진 쪽은 경주에서 빠진다: 내 배를 빼앗긴다
+  } else {
+    r.boardCd = G.raceTime + 15;
+    hud.event(t('board.retreatEv'), 1800);
+  }
+}
+
+// ---------- 거북선의 연기와 불기둥 ----------
+// 용머리는 원래 유황 연기를 뿜어 배를 가리던 장치다. 평소에도 가늘게 연기를 흘리고,
+// 부스트 때는 입에서 불을, 선미 분사구 둘에서는 불기둥을 뿜으며 짙은 연기 꼬리를 남긴다.
+const _tv = new THREE.Vector3();
+const SMOKE = [0x2e2c2a, 0x45423c, 0x5e5a4c, 0x6e6848];   // 검은 연기 ~ 누런 유황 연기
+const FLAME = [0xfff0b0, 0xffc04a, 0xff8a2a, 0xff5a14];
+const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+function turtleSmoke(b, dt) {
+  const fx = b.mesh.userData.turtleFx;
+  if (!fx || b.submerged) return;
+  const P = G.particles, f = b.forward(), on = b.boosting || b.turbo > 0, k = b.turbo > 0 ? 1.4 : 1;
+  const rnd = (a) => (Math.random() - 0.5) * a;
+  // 용머리: 평소에는 가는 연기, 부스트 때는 불과 짙은 연기
+  fx.mouth.getWorldPosition(_tv);
+  if (on) {
+    for (let i = 0; i < 3; i++) P.spawn(_tv.x, _tv.y, _tv.z, f.x * 26 * k + rnd(5), rnd(3), f.z * 26 * k + rnd(5), 0.3 + Math.random() * 0.15, 3 + Math.random() * 2, pick(FLAME), 3, 6);
+    for (let i = 0; i < 2; i++) P.spawn(_tv.x + rnd(1), _tv.y + 0.5, _tv.z + rnd(1), f.x * 9 + rnd(3), 2 + Math.random() * 2.5, f.z * 9 + rnd(3), 2 + Math.random() * 1.2, 4 + Math.random() * 2, pick(SMOKE), 1.6, 7);
+  } else if (Math.random() < 0.3) {
+    P.spawn(_tv.x, _tv.y + 0.2, _tv.z, f.x * 2 + rnd(1), 1.5 + Math.random(), f.z * 2 + rnd(1), 2.4, 2.5, pick(SMOKE), 0.8, 4);
+  }
+  if (!on) return;
+  // 선미 분사구: 뒤로 곧게 뻗는 불기둥과 불티, 그 뒤를 잇는 연기 꼬리
+  for (const jet of fx.jets) {
+    jet.getWorldPosition(_tv);
+    for (let i = 0; i < 3; i++) P.spawn(_tv.x, _tv.y, _tv.z, -f.x * 34 * k + rnd(4), rnd(2), -f.z * 34 * k + rnd(4), 0.22 + Math.random() * 0.15, 3.5 + Math.random() * 2, pick(FLAME), 0, 5);
+    if (Math.random() < 0.5) P.spawn(_tv.x, _tv.y, _tv.z, -f.x * 22 + rnd(10), 3 + Math.random() * 5, -f.z * 22 + rnd(10), 0.6, 1.4, 0xffd27a, -14);   // 튀는 불티
+    if (Math.random() < 0.8) P.spawn(_tv.x - f.x * 4, _tv.y + 0.3, _tv.z - f.z * 4, -f.x * 7 + rnd(3), 1.5 + Math.random() * 2, -f.z * 7 + rnd(3), 2.4 + Math.random(), 4.5, pick(SMOKE), 1.2, 8);
+  }
+}
+
+// ---------- 현재 위치 ----------
+// 상단 위치 띠를 갱신하고, 구간 한가운데(이정표)와 입항 직전에 한 번씩 알려 준다
+function updateLocation(p) {
+  const loc = locationAt(G.track, G.route, p.curveIdx);
+  hud.setLocation(loc);
+  if (G.state !== 'racing' || p.finished) return;
+  const L = G.locNote || (G.locNote = { seg: -1, half: false, near: false });
+  if (L.seg !== loc.fromIdx) { L.seg = loc.fromIdx; L.half = loc.frac > 0.5; L.near = loc.frac > 0.8; }
+  const vars = { to: portName(loc.to), km: fmtKm(loc.km) };
+  if (!L.half && loc.frac > 0.5 && loc.frac < 0.62) { L.half = true; hud.event(t('loc.sign', vars), 2600); }
+  if (!L.near && loc.frac > 0.8 && loc.frac < 0.9) {
+    L.near = true;
+    const finishing = (loc.fromIdx + 1) % G.route.ports.length === 0 && p.lap >= G.laps - 1;
+    hud.event(t(finishing ? 'loc.finish' : 'loc.near', vars), 2600);
+  }
+}
+
 function finishBoat(boat) {
   boat.finished = true; boat.finishTime = G.raceTime;
   if (boat.isPlayer) {
@@ -1497,7 +1649,77 @@ function captureBoat(b) {
   b.throttle = 0; b.steer = 0; b.boosting = false; b.turbo = 0; b.boost = 0;
   G.particles.burst(b.pos.x, 3, b.pos.z, 70, { speed: 11, up: 9, life: 1.6, size: 4, color: 0xfff3d6, grav: -7, spread: 4 });
   hud.event(t('duel.captured', { name: b.name, ship: b.def.name }), 3200);
-  if (G.mission) G.mission.hits++;   // 포격으로 맞힌 것과 같은 전과로 센다
+}
+
+// ---------- 진 배: 나포하거나 버린다 ----------
+// 일기토(기싸움·접현)에서 이기거나 항복을 받으면 묻는다. 어느 쪽이든 그 배는 경주에서 빠진다.
+//   나포: 금화·보급·화약을 챙긴다. 대신 옮겨 싣는 동안 잠시 멈춘다.
+//   버림: 배를 가라앉히고 곧장 전속으로 떠난다. 전리품은 없다.
+function lootOf(b) {
+  const s = b.def.stats || {};
+  const base = 300 + (s.durability ?? 5) * 50 + (s.speed ?? 5) * 25;   // 크고 빠른 배일수록 실은 것이 많다
+  return { gold: Math.round(base * (b.rank <= 3 ? 1.5 : 1) / 10) * 10, time: 2.5 };
+}
+function offerSpoils(b, source) {
+  const back = G.state;                     // 목표를 채워 'finished' 가 된 판이면 그대로 돌아간다
+  hud.setDuelMarkers([]); boarding.hidePrompt();
+  G.state = 'spoils'; G.keys = {}; PTR.down = false; PTR.boost = false; G.player.boosting = false;
+  audio.setSpeed(0, false);
+  const loot = lootOf(b);
+  boarding.openSpoils({ name: b.name, figId: b.figId, ship: b.def.name, loot }, (c) => settleDefeated(b, c, loot, source, back));
+}
+function settleDefeated(b, choice, loot, source, back) {
+  G.state = back === 'finished' ? 'finished' : 'racing';
+  G.keys = {}; clock.getDelta();
+  const p = G.player;
+  if (source === 'tug' && G.mission) G.mission.hits++;   // 기싸움 승리는 포격 명중 한 발 몫
+  if (choice === 'capture') {
+    captureBoat(b);
+    G.stats.plunder = (G.stats.plunder || 0) + loot.gold;
+    award(loot.gold, t('spoils.goldPop'), '#ffd54f', () => audio.coin(5));
+    missionTreasure(loot.gold);
+    p.boost = 1; p.cannonCd = 0;            // 보급 · 화약
+    G.lootT = loot.time;
+    hud.event(t('spoils.loading', { s: loot.time }), 2400);
+  } else {
+    scuttleBoat(b);
+    p.turbo = Math.max(p.turbo, 2.2);
+    award(300, t('spoils.sunkPop'), '#ff9a6b', () => audio.boost());
+  }
+}
+// 버림: 불을 놓아 가라앉힌다. 순위에서 빠지고, 다 가라앉으면 보이지 않는다.
+function scuttleBoat(b) {
+  b.captured = true; b.scuttled = true; b.sinkT = 0;
+  b.throttle = 0; b.steer = 0; b.boosting = false; b.turbo = 0; b.speed = 0;
+  G.particles.burst(b.pos.x, 4, b.pos.z, 80, { speed: 9, up: 10, life: 1.8, size: 5, color: 0xff8a3a, grav: -4, spread: 5 });
+  hud.event(t('spoils.scuttled', { name: b.name, ship: b.def.name }), 3000);
+  audio.splash();
+}
+function updateSinking(dt) {
+  for (const b of G.boats) {
+    if (!b.scuttled || !b.mesh.visible) continue;
+    b.sinkT += dt;
+    const k = Math.min(1, b.sinkT / 2.8), e = k * k * (3 - 2 * k);   // 뱃머리부터 기울며 내려간다
+    b.mesh.rotation.set(0, 0, 0); b.mesh.rotateY(b.heading); b.mesh.rotateX(e * 0.55); b.mesh.rotateZ(e * 0.3);
+    b.mesh.position.set(b.pos.x, waveHeight(b.pos.x, b.pos.z, G.t) * 0.6 - e * 16, b.pos.z);
+    if (b.sinkT < 2 && Math.random() < 0.8) G.particles.spawn(b.pos.x + (Math.random() - 0.5) * 10, 4 + Math.random() * 6, b.pos.z + (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 3, 5 + Math.random() * 4, (Math.random() - 0.5) * 3, 1.4, 5, Math.random() < 0.5 ? 0xff7a2a : 0x4a4a4a, 2);
+    if (b.sinkT > 3.4) b.mesh.visible = false;
+  }
+}
+
+// 접현 일기토에서 졌다: 상대 선원들이 올라와 내 배를 빼앗는다. 항해가 끝난다.
+function playerTaken(foe) {
+  const p = G.player;
+  p.capsized = true; p.taken = true;        // 순위에서 빠진다 (전복과 같은 자리)
+  p.throttle = 0; p.steer = 0; p.boosting = false; p.turbo = 0; p.speed = 0;
+  G.state = 'capsized'; G.capsizeT = 0; G.lossKind = 'taken';
+  if (G.mission) { G.mission.failed = true; G.mission.failReason = t('board.failReason'); G.mission.crashes++; }
+  hud.setDuelMarkers([]);
+  hud.centerMsg(t('board.takenCenter'), '#ff6b6b');
+  hud.event(t('board.takenEv', { name: foe.name }), 3200);
+  hud.hitFlash(); audio.hit(0.9);
+  G.camShake = Math.max(G.camShake, 0.6);
+  breakCombo();
 }
 
 // 전복: 플레이어의 항해가 여기서 끝난다.
@@ -1577,6 +1799,7 @@ function damageConsort(b, amount, reason) {
 function handleCollisions(dt) {
   const tr = G.track;
   for (const b of G.boats) {
+    if (b.scuttled) continue;   // 가라앉은 배는 아무것과도 부딪히지 않는다
     const R = b.phys.radius * 0.6;
     const fast = Math.abs(b.speed) > b.phys.maxSpeed * 0.55;
     // 장애물
@@ -1808,6 +2031,7 @@ function handleCollisions(dt) {
   // 배끼리 충돌
   for (let i = 0; i < G.boats.length; i++) for (let j = i + 1; j < G.boats.length; j++) {
     const a = G.boats[i], b = G.boats[j];
+    if (a.scuttled || b.scuttled) continue;
     if (a.airborne || b.airborne || a.loop || b.loop) continue;
     const ra = a.phys.radius * 0.55, rb = b.phys.radius * 0.55;
     const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z; const d = Math.hypot(dx, dz);
@@ -1833,7 +2057,7 @@ function updateSlipstream(dt) {
   const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
   let drafting = false;
   for (const b of G.boats) {
-    if (b === p) continue;
+    if (b === p || b.captured) continue;   // 나포·격침된 배 뒤에는 바람 그늘이 없다
     const dx = b.pos.x - p.pos.x, dz = b.pos.z - p.pos.z;
     const ahead = dx * fx + dz * fz, lateral = Math.abs(dx * fz - dz * fx);
     if (ahead > p.phys.radius && ahead < 48 && lateral < 7.5) { drafting = true; break; }
@@ -1903,7 +2127,7 @@ function updateProjectiles(dt) {
       if (p.pos.distanceTo(G.player.pos) < 100) audio.splash();
     }
     if (!remove) for (const b of G.boats) {
-      if (b === p.owner) continue;
+      if (b === p.owner || b.scuttled) continue;
       if (b.consort?.sunk) continue;
       // 아군 오사 방지: 기함과 동료함끼리는 맞지 않는다
       const sameFleet = (x, y) => (x.isPlayer || x.consort) && (y.isPlayer || y.consort);
@@ -1930,6 +2154,7 @@ function updateProjectiles(dt) {
 // ---------- 카메라 ----------
 const camTarget = new THREE.Vector3(), camPos = new THREE.Vector3(), _f = new THREE.Vector3(), _camOff = new THREE.Vector3();
 function updateCamera(dt) {
+  if (G.camHook) { G.camHook(camera, dt); return; }   // 테스트·스크린샷용: 카메라를 밖에서 잡는다
   const p = G.player;
   p.forward(_f);
   const h = waveHeight(p.pos.x, p.pos.z, G.t);
@@ -2012,7 +2237,7 @@ function showResults() {
   $('result-title').textContent = ch
     ? (cleared ? t('res.chapterClear', { act: ch.act }) : t('res.chapterFail'))
     : (me.rank === 1 ? t('res.first') : me.rank <= 3 ? t('res.honor') : t('res.end'));
-  $('result-rank-big').textContent = me.capsized ? t('res.capsized')
+  $('result-rank-big').textContent = me.capsized ? t(G.lossKind === 'taken' ? 'res.taken' : 'res.capsized')
     : me.rank === 1 ? t('res.rank1') : t('res.rank', { r: ordinal(me.rank) });
   $('result-portrait').src = portraitSrc(SEL.admiral);
   $('result-admiral-name').textContent = me.name;
@@ -2080,7 +2305,7 @@ function showResults() {
   const item = (label, v) => `<span>${label}<b>${v}</b></span>`;
   $('result-score').innerHTML = `<div class="total">${t('res.score', { s: G.score.toLocaleString() })}</div>` +
     item(t('res.rankPts'), st.rankPts.toLocaleString()) + item(t('res.maxCombo'), '×' + st.maxCombo) + item(t('res.near'), st.nearMiss) + item(t('res.overtake'), st.overtakes) +
-    item(t('res.draft'), st.slipstreams) + item(t('res.tap'), G.tap.bursts) + item(t('res.coins'), st.coins) + item(t('res.chests'), st.chests) + item(t('res.storms'), st.storms) + item(t('res.jumps'), st.jumps) + (st.loops ? item(t('res.loops'), st.loops) : '') +
+    item(t('res.draft'), st.slipstreams) + item(t('res.tap'), G.tap.bursts) + item(t('res.coins'), st.coins) + item(t('res.chests'), st.chests) + item(t('res.storms'), st.storms) + item(t('res.jumps'), st.jumps) + (st.loops ? item(t('res.loops'), st.loops) : '') + (st.duels ? item(t('res.duels'), `${st.duelWins || 0} / ${st.duels}`) : '') + (st.plunder ? item(t('res.plunder'), st.plunder.toLocaleString()) : '') +
     (G.fleet && G.fleet.size ? item(t('res.fleetTime'), Math.round(st.fleetTime) + 's') + item(t('res.orders'), st.orders) + item(t('res.alive'), `${m.aliveConsorts}/${G.fleet.size}`) : '') +
     (st.perfectStart ? item(t('res.perfect'), '✔') : '') + (st.bestLap < Infinity ? item(t('res.bestLap'), formatTime(st.bestLap)) : '');
 
@@ -2381,6 +2606,13 @@ function step() {
     return;
   }
 
+  // 접현 메뉴·일기토: 경주 시간이 멈춘다. 바다 장면은 그대로 두고 일기토 화면만 움직인다.
+  if (st === 'boardmenu' || st === 'boardduel' || st === 'spoils') {
+    boarding.update(dt);
+    if (st !== 'boardduel') renderer.render(scene, camera);
+    return;
+  }
+
   const tr = G.track;
   G.env.update(G.t, camera.position);
   tr.update(dt, G.t);
@@ -2423,6 +2655,7 @@ function step() {
     hud.setRace(G.player.rank, G.boats.length, 1, G.laps, 0);
     hud.setShip(G.player, G.wind);
     hud.updatePortCard(0, G.t);
+    hud.setLocation(locationAt(tr, G.route, G.player.curveIdx));
     hud.setFleet(G.fleet);
     hud.setOrders(G.fleet);
     hud.drawMinimap(tr, G.boats, G.player, G.krakenActive, G.player.tr.foresight);
@@ -2444,11 +2677,11 @@ function step() {
       hud.setDuelBar({ me: p.name, foe: D.foe.name, meter: D.meter, pressed: G.duelPressT > 0 });
       if (r === 'win') {
         const foe = D.finish();
-        captureBoat(foe);
         hud.setDuelBar(null);
         hud.centerMsg(t('duel.win'), '#ffe08a');
         award(1200, t('duel.winSub', { name: foe.name }), '#ffe08a', () => { audio.bell(); audio.overtake(); });
         G.camShake = Math.max(G.camShake, 0.5);
+        offerSpoils(foe, 'tug');
       } else if (r === 'lose') {
         capsizePlayer(D.foe);
         D.finish();
@@ -2458,7 +2691,8 @@ function step() {
     } else D.update(dt);   // 재도전 대기 시간만 흐른다
 
     // 플레이어 입력
-    if (D.busy && !p.finished) { p.throttle = 0; p.steer = 0; p.boosting = false; }
+    if (G.lootT > 0) G.lootT -= dt;
+    if ((D.busy || G.lootT > 0) && !p.finished) { p.throttle = 0; p.steer = 0; p.boosting = false; }
     else if (G.autoPlayer && !p.finished) { if (aiControl(p, tr, G.boats, p, G.wind, dt, diff, G.krakenActive)) fireCannon(p); }
     else if (!p.finished) {
       const k = G.keys;
@@ -2476,6 +2710,7 @@ function step() {
     } else { p.throttle = 0.4; p.steer = 0; p.boosting = false; }
 
     updateSlipstream(dt);
+    updateBoarding(dt);
     updateTap(dt);
     updateWrongWay(dt);
 
@@ -2512,6 +2747,8 @@ function step() {
       else if (!b.isPlayer) {
         if (b.finished) { b.throttle = 0.5; b.steer = 0; b.boosting = false; }
         else if (aiControl(b, tr, G.boats, p, G.wind, dt, diff, G.krakenActive)) fireCannon(b);
+        // 일기토에 진 배: 선장이 쓰러져 한동안 배가 멈춘다
+        if (b.subdued > 0) { b.subdued -= dt; b.throttle = 0; b.boosting = false; b.speed *= Math.max(0, 1 - dt * 1.5); }
       }
       b.update(dt, G.wind, G.t);
       // 항적 파티클
@@ -2525,11 +2762,12 @@ function step() {
           if (sr > 0.5 && Math.random() < 0.6 + SEA.storm * 0.4) G.particles.spawn(b.pos.x + f.x * R * 0.9, 1.5, b.pos.z + f.z * R * 0.9, (Math.random() - 0.5) * 8, 4 + Math.random() * 3 + SEA.storm * 5, (Math.random() - 0.5) * 8, 0.7, 2.5 + SEA.storm * 2, 0xffffff, -14);
         }
       }
-      if (b.boosting && b.def.turtle) { const f = b.forward(); G.particles.spawn(b.pos.x + f.x * (b.phys.radius + 2), 2, b.pos.z + f.z * (b.phys.radius + 2), f.x * 20 + (Math.random() - 0.5) * 6, 2, f.z * 20 + (Math.random() - 0.5) * 6, 0.5, 5, 0xff7043, 0); }
+      if (b.def.turtle) turtleSmoke(b, dt);
     }
     updateTide(dt);
     updateWildlife(dt);
     handleCollisions(dt);
+    updateSinking(dt);
     for (const b of G.boats) { if (b.captured) continue; updateProgress(b); if (b.def.trackLock) applyTrackLock(b, dt); }
     updateRanks();
     updateDuelMarkers();
@@ -2547,6 +2785,7 @@ function step() {
     hud.setFleet(G.fleet);
     hud.setOrders(G.fleet);
     hud.updatePortCard(p.curveIdx / tr.sampleCount, G.t);
+    updateLocation(p);
     hud.drawMinimap(tr, G.boats, p, G.krakenActive, p.tr.foresight);
 
     if (st === 'finished') {
@@ -2561,11 +2800,14 @@ function step() {
     const p = G.player;
     const k = Math.min(1, G.capsizeT / 1.7);
     const ease = k * k * (3 - 2 * k);                 // 천천히 기울다 한 번에 넘어간다
-    p.mesh.rotation.set(0, 0, 0);
-    p.mesh.rotateY(p.heading);
-    p.mesh.rotateZ(ease * Math.PI * 0.92);
-    p.mesh.position.y = waveHeight(p.pos.x, p.pos.z, G.t) * 0.6 + 0.25 - ease * 3.2;
-    if (G.capsizeT < 1.6 && Math.random() < 0.7) {
+    if (G.lossKind !== 'taken') {            // 빼앗긴 배는 뒤집히지 않고 돛을 내린 채 떠 있다
+      p.mesh.rotation.set(0, 0, 0);
+      p.mesh.rotateY(p.heading);
+      p.mesh.rotateZ(ease * Math.PI * 0.92);
+      p.mesh.position.y = waveHeight(p.pos.x, p.pos.z, G.t) * 0.6 + 0.25 - ease * 3.2;
+    }
+    updateSinking(dt);
+    if (G.lossKind !== 'taken' && G.capsizeT < 1.6 && Math.random() < 0.7) {
       G.particles.spawn(p.pos.x + (Math.random() - 0.5) * 14, 1.2, p.pos.z + (Math.random() - 0.5) * 14,
         (Math.random() - 0.5) * 5, 3 + Math.random() * 4, (Math.random() - 0.5) * 5, 1.2, 4, 0xffffff, -9);
     }
@@ -2582,5 +2824,5 @@ function step() {
 refreshTitle();
 window.__camera = camera; // 디버그용 (테스트에서 화면 투영 확인)
 window.__G = G; // 디버그용
-window.__dbg = { award, finishBoat, showResults, openDuelPrompt, acceptDuel, declineDuel, duelTap, captureBoat, capsizePlayer, updateDuelMarkers, breakCombo, step, renderer, audio, SAVE, SEL, orderFleet, startRace, showChapters, showFleetScreen, cutscene, waveHeight, HALF: TRACK_HALF_WIDTH }; // 테스트용 훅
+window.__dbg = { boarding, award, finishBoat, showResults, openDuelPrompt, acceptDuel, declineDuel, duelTap, captureBoat, capsizePlayer, updateDuelMarkers, breakCombo, step, renderer, audio, SAVE, SEL, orderFleet, startRace, showChapters, showFleetScreen, cutscene, waveHeight, HALF: TRACK_HALF_WIDTH }; // 테스트용 훅
 loop();

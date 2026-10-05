@@ -352,6 +352,23 @@
     <div id="storm-warn" class="hidden" data-i18n="hud.storm">⛈ 폭풍 접근!</div>
     <div id="wrong-way" class="hidden" data-i18n="hud.wrongWay">⛔ 역방향! 방향을 돌리세요</div>
     <div id="music-label"></div>
+    <!-- 일기토: 앞서 가는 배 위에 뜨는 표찰 · 승부를 묻는 패널 · 기싸움 저울 -->
+    <div id="duel-markers"></div>
+    <div id="duel-prompt" class="hidden">
+      <div class="dp-head" data-i18n="duel.head">⚔ 일기토</div>
+      <div class="dp-foe"><b id="dp-name"></b><span id="dp-ship"></span></div>
+      <div id="dp-odds"></div>
+      <div class="dp-note" data-i18n="duel.note">이기면 나포한다. 지면 전복되어 항해가 끝난다.</div>
+      <div class="dp-btns">
+        <button id="dp-accept" type="button" data-i18n="duel.accept">⚔ 받는다</button>
+        <button id="dp-decline" type="button" data-i18n="duel.decline">물러난다</button>
+      </div>
+    </div>
+    <div id="duel-bar" class="hidden">
+      <div class="db-head"><span id="db-me"></span><b data-i18n="duel.clash">기싸움</b><span id="db-foe"></span></div>
+      <div class="db-track"><div id="db-fill"></div><div id="db-mark"></div></div>
+      <div class="db-hint" data-i18n="duel.hint">SPACE · 화면 연타로 밀어붙여라</div>
+    </div>
     <div id="offcourse-warn" class="hidden" data-i18n="hud.offcourse">⚠ 항로 이탈! 항로로 복귀하세요</div>
     <div id="tracklock-msg" class="hidden" data-i18n="hud.trackLock">🛤 항로 유지 장치 작동</div>
     <div id="touch-pad">

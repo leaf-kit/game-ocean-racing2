@@ -20,6 +20,7 @@ import { QUOTES as VERSES, findQuote as findVerse, stageOf, blankOut, MEMORIZED_
 import { Cutscene } from './story.js?v=20261004a';
 import { Wildlife, ANIMALS } from './wildlife.js?v=20261004a';
 import { Bukhang, BOND_FULL } from './bukhang.js?v=20261004a';
+import { Duel } from './duel.js?v=20261004a';
 
 applyEnglishData();
 applyStaticI18n();
@@ -129,6 +130,8 @@ const G = {
   animalsMet: [], animalsNew: [],         // 이번 항해에서 본 종 / 도감에 처음 올린 종
   tide: { phase: 0, level: 0, high: false },
   guide: { stress: 0, led: 0, done: false, slowT: 0 },
+  // 일기토
+  duel: new Duel(), duelPressT: 0, capsizeT: 0,
 };
 const COMBO_WINDOW = 4.0;
 const cutscene = new Cutscene();
@@ -153,12 +156,14 @@ window.addEventListener('keydown', (e) => {
     if (ord) { orderFleet(ord); return; }
   }
   if (!G.keys[e.code] && (e.code === 'KeyW' || e.code === 'ArrowUp') && G.state === 'countdown') G.throttleKeyTime = G.t;
+  // 기싸움 중: SPACE / SHIFT 가 밀어붙이는 힘이다. 포격도 부스트도 멈춘다.
+  if (G.duel.clashing && (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight')) { e.preventDefault(); if (!G.keys[e.code]) duelTap(); G.keys[e.code] = true; return; }
   if (!G.keys[e.code] && (e.code === 'ShiftLeft' || e.code === 'ShiftRight') && G.state === 'racing') onShiftTap();
   G.keys[e.code] = true;
   if (e.code === 'KeyC' && G.state === 'racing') G.camMode = (G.camMode + 1) % 3;
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyM' && audio.enabled) { audio.musicOn = !audio.musicOn; audio.setMusicVolume(audio.musicOn ? audio.MUSIC_VOL : 0); hud.event(audio.musicOn ? t('ev.music.on') : t('ev.music.off'), 1200); }
-  if (e.code === 'Escape' && ['racing', 'finished', 'countdown', 'result'].includes(G.state)) { endRace(); showFleetScreen(); }
+  if (e.code === 'Escape' && ['racing', 'finished', 'countdown', 'result', 'capsized'].includes(G.state)) { endRace(); showFleetScreen(); }
 });
 window.addEventListener('keyup', (e) => { G.keys[e.code] = false; });
 window.addEventListener('blur', () => { G.keys = {}; });
@@ -177,7 +182,7 @@ for (const btn of document.querySelectorAll('#touch-pad .pad-btn')) {
   btn.addEventListener('pointerdown', press); btn.addEventListener('pointerup', release); btn.addEventListener('pointercancel', release); btn.addEventListener('lostpointercapture', release);
   btn.addEventListener('contextmenu', (e) => e.preventDefault());
 }
-const isUiTarget = (el) => !!(el && el.closest && el.closest('#fleet-screen, #chapter-screen, #codex-screen, #result-screen, #title-screen, #cutscene, #lang-bar, #music-widget, #top-menu, #touch-pad, #btn-fire, #fleet-orders, #enter-gate, select, button, input'));
+const isUiTarget = (el) => !!(el && el.closest && el.closest('#fleet-screen, #chapter-screen, #codex-screen, #result-screen, #title-screen, #cutscene, #lang-bar, #music-widget, #top-menu, #touch-pad, #btn-fire, #fleet-orders, #enter-gate, #duel-markers, #duel-prompt, select, button, input'));
 function ptrSteerFrom(x) {
   const w = window.innerWidth, c = w / 2, dead = w * 0.06;
   const d = x - c;
@@ -191,6 +196,8 @@ window.addEventListener('pointerdown', (e) => {
   PTR.fingers.add(e.pointerId);
   if (e.pointerType === 'mouse' && e.button === 2) { PTR.boost = true; return; }
   if (PTR.fingers.size >= 2) { PTR.boost = true; return; } // 두 번째 손가락 = 전속 항해
+  // 기싸움 중에는 화면을 두드리는 것이 조타가 아니라 밀어붙이는 힘이다
+  if (G.duel.clashing) { duelTap(); return; }
   PTR.down = true; PTR.id = e.pointerId; PTR.steer = ptrSteerFrom(e.clientX);
   if (G.state === 'racing') onShiftTap(); // 두드리기 = 연타 부스트 게이지
   if (G.state === 'countdown') G.throttleKeyTime = G.t;
@@ -205,6 +212,15 @@ const ptrUp = (e) => {
 };
 window.addEventListener('pointerup', ptrUp); window.addEventListener('pointercancel', ptrUp);
 window.addEventListener('contextmenu', (e) => { if (!isUiTarget(e.target)) e.preventDefault(); });
+// 표찰은 매 프레임 새로 만들어질 수 있으므로 컨테이너에 한 번만 위임해 둔다
+$('duel-markers').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.dm'); if (!el) return;
+  e.preventDefault(); e.stopPropagation();
+  openDuelPrompt(el.dataset.duelId);
+});
+$('dp-accept').addEventListener('click', (e) => { e.stopPropagation(); acceptDuel(); });
+$('dp-decline').addEventListener('click', (e) => { e.stopPropagation(); declineDuel(); });
+
 $('btn-fire').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (G.state === 'racing' && G.player && !G.player.finished) (G.player.def.freeJump ? doBreach : fireCannon)(G.player); });
 
 // ---------- 화면 전환 ----------
@@ -858,6 +874,10 @@ function startRace() {
   G.animalsMet = []; G.animalsNew = [];
   G.tide = { phase: Math.random() * Math.PI * 2, level: 0, high: false };
   G.guide = { stress: 0, led: 0, done: false, slowT: 0 };
+  // 일기토 초기화. 지난 판의 나포·전복 표시도 함께 지운다.
+  G.duel.reset(); G.duelPressT = 0; G.capsizeT = 0;
+  for (const b of G.boats) { b.captured = false; b.capsized = false; }
+  hud.clearDuelMarkers(); hud.hideDuelPrompt(); hud.setDuelBar(null);
   if (G.shark) G.shark.reset(true);
   G.raceTime = 0; G.countdown = 3.6; G.state = 'countdown'; G.camMode = 0; G.finishTimer = 0; G.krakenActive = false; G.lastLapTime = 0;
   G.countStep = 4;
@@ -981,6 +1001,8 @@ function missionTreasure(points) {
 }
 
 function endRace() {
+  G.duel.reset(); G.duelPressT = 0;
+  hud.clearDuelMarkers(); hud.hideDuelPrompt(); hud.setDuelBar(null);
   G.state = 'select'; hud.hide(); audio.setSpeed(0, false); resetStorm();
   G.fleet = null; G.mission = null;
   if (G.env) { G.env.setStorm(0, 0); G.env.setAurora(0); }
@@ -1396,6 +1418,7 @@ function finishBoat(boat) {
   boat.finished = true; boat.finishTime = G.raceTime;
   if (boat.isPlayer) {
     G.state = 'finished'; G.finishTimer = 3.0;
+    G.duel.reset(); hud.hideDuelPrompt(); hud.setDuelBar(null); hud.clearDuelMarkers();
     if (G.mission) { G.mission.finished = true; G.mission.time = G.raceTime; G.mission.rank = boat.rank; }
     const r = boat.rank;
     G.stats.rankPts = [0, 3000, 2000, 1200, 700, 400, 200][r] || 0;
@@ -1409,8 +1432,97 @@ function finishBoat(boat) {
   }
 }
 
+// ---------- 일기토 ----------
+// 앞서 가는 배를 붙잡아 일대일로 끝을 본다.
+// 이기면 나포해서 그 배를 레이스에서 빼고, 지면 전복되어 내 항해가 끝난다.
+// 값이 비싼 대신 걸려 있는 것도 크다 — 붙어 있는 동안 나머지 배들은 계속 달린다.
+
+const _duelV = new THREE.Vector3();
+
+// 도전할 수 있는 배들의 표찰을 화면에 뿌린다.
+function updateDuelMarkers() {
+  if (G.state !== 'racing' || !G.player) { hud.setDuelMarkers([]); return; }
+  const list = G.duel.candidates(G.boats, G.player);
+  if (!list.length) { hud.setDuelMarkers([]); return; }
+  const W = window.innerWidth, H = window.innerHeight;
+  const marks = [];
+  for (const { boat, dist } of list.slice(0, 3)) {   // 셋까지만. 화면이 표찰로 덮이면 항해가 안 된다.
+    _duelV.copy(boat.pos); _duelV.y += 7;
+    _duelV.project(camera);
+    if (_duelV.z > 1) continue;                      // 카메라 뒤
+    const x = (_duelV.x * 0.5 + 0.5) * W, y = (-_duelV.y * 0.5 + 0.5) * H;
+    if (x < 10 || x > W - 10 || y < 40 || y > H - 40) continue;
+    marks.push({ id: String(G.boats.indexOf(boat)), label: boat.name, ship: boat.def.name, x, y, near: dist < 90 });
+  }
+  hud.setDuelMarkers(marks);
+}
+
+function openDuelPrompt(id) {
+  if (G.state !== 'racing') return;
+  const foe = G.boats[Number(id)];
+  if (!foe || foe === G.player) return;
+  if (G.duel.cooldown > 0) { hud.event(t('duel.wait'), 1400); return; }
+  if (!G.duel.open(foe)) return;
+  hud.setDuelMarkers([]);
+  const kind = G.duel.odds(G.player, foe);
+  hud.showDuelPrompt(foe.name, foe.def.name, { text: t('duel.odds.' + kind), kind });
+  audio.bell();
+}
+
+function declineDuel() {
+  G.duel.cancel();
+  hud.hideDuelPrompt();
+  hud.event(t('duel.declined'), 1200);
+}
+
+function acceptDuel() {
+  const foe = G.duel.foe;
+  // 묻는 사이에 상대가 완주하거나 이미 나포됐으면 없던 일로 한다
+  if (!foe || foe.finished || foe.captured || G.state !== 'racing' || G.player.finished) { declineDuel(); return; }
+  if (!G.duel.begin(G.player)) return;
+  hud.hideDuelPrompt();
+  hud.centerMsg(t('duel.head'), '#ff8b6b');
+  hud.event(t('duel.begin', { name: foe.name }), 2200);
+  audio.cannon();
+  G.camShake = Math.max(G.camShake, 0.45);
+}
+
+function duelTap() {
+  if (G.duel.tap()) { G.duelPressT = 0.09; audio.hit(0.25); }
+}
+
+// 나포: 돛을 내리고 레이스에서 뺀다.
+function captureBoat(b) {
+  b.captured = true;
+  b.throttle = 0; b.steer = 0; b.boosting = false; b.turbo = 0; b.boost = 0;
+  G.particles.burst(b.pos.x, 3, b.pos.z, 70, { speed: 11, up: 9, life: 1.6, size: 4, color: 0xfff3d6, grav: -7, spread: 4 });
+  hud.event(t('duel.captured', { name: b.name, ship: b.def.name }), 3200);
+  if (G.mission) G.mission.hits++;   // 포격으로 맞힌 것과 같은 전과로 센다
+}
+
+// 전복: 플레이어의 항해가 여기서 끝난다.
+function capsizePlayer(foe) {
+  const p = G.player;
+  p.captured = false;
+  p.capsized = true;
+  p.throttle = 0; p.steer = 0; p.boosting = false; p.turbo = 0;
+  G.state = 'capsized'; G.capsizeT = 0;
+  if (G.mission) { G.mission.failed = true; G.mission.failReason = t('duel.failReason'); G.mission.crashes++; }
+  hud.setDuelBar(null); hud.setDuelMarkers([]);
+  hud.centerMsg(t('duel.lose'), '#ff6b6b');
+  hud.event(t('duel.loseSub', { name: foe ? foe.name : '' }), 3200);
+  hud.hitFlash();
+  audio.hit(1); audio.splash();
+  G.camShake = Math.max(G.camShake, 0.9);
+  breakCombo();
+  G.particles.burst(p.pos.x, 2, p.pos.z, 160, { speed: 16, up: 14, life: 2, size: 5, color: 0xe8f6ff, grav: -12, spread: 6 });
+}
+
 function updateRanks() {
   const sorted = [...G.boats].sort((a, b) => {
+    // 나포되거나 전복한 배는 완주 여부와 상관없이 맨 뒤로 보낸다
+    const ao = a.captured || a.capsized, bo = b.captured || b.capsized;
+    if (ao !== bo) return ao ? 1 : -1;
     if (a.finished && b.finished) return a.finishTime - b.finishTime;
     if (a.finished) return -1; if (b.finished) return 1;
     return b.progress - a.progress;
@@ -1900,7 +2012,8 @@ function showResults() {
   $('result-title').textContent = ch
     ? (cleared ? t('res.chapterClear', { act: ch.act }) : t('res.chapterFail'))
     : (me.rank === 1 ? t('res.first') : me.rank <= 3 ? t('res.honor') : t('res.end'));
-  $('result-rank-big').textContent = me.rank === 1 ? t('res.rank1') : t('res.rank', { r: ordinal(me.rank) });
+  $('result-rank-big').textContent = me.capsized ? t('res.capsized')
+    : me.rank === 1 ? t('res.rank1') : t('res.rank', { r: ordinal(me.rank) });
   $('result-portrait').src = portraitSrc(SEL.admiral);
   $('result-admiral-name').textContent = me.name;
 
@@ -2323,8 +2436,30 @@ function step() {
     const p = G.player;
     // 콤보 타이머
     if (G.comboTimer > 0) { G.comboTimer -= dt; if (G.comboTimer <= 0) { G.combo = 0; hud.el.combo.classList.add('hidden'); } }
+    // 일기토: 붙어 있는 동안 두 배는 멈춰 선다. 그 사이 나머지는 계속 달린다 — 그게 값이다.
+    const D = G.duel;
+    if (G.duelPressT > 0) G.duelPressT -= dt;
+    if (D.clashing) {
+      const r = D.update(dt);
+      hud.setDuelBar({ me: p.name, foe: D.foe.name, meter: D.meter, pressed: G.duelPressT > 0 });
+      if (r === 'win') {
+        const foe = D.finish();
+        captureBoat(foe);
+        hud.setDuelBar(null);
+        hud.centerMsg(t('duel.win'), '#ffe08a');
+        award(1200, t('duel.winSub', { name: foe.name }), '#ffe08a', () => { audio.bell(); audio.overtake(); });
+        G.camShake = Math.max(G.camShake, 0.5);
+      } else if (r === 'lose') {
+        capsizePlayer(D.foe);
+        D.finish();
+      }
+    } else if (D.state === 'prompt') {
+      hud.setDuelBar(null);
+    } else D.update(dt);   // 재도전 대기 시간만 흐른다
+
     // 플레이어 입력
-    if (G.autoPlayer && !p.finished) { if (aiControl(p, tr, G.boats, p, G.wind, dt, diff, G.krakenActive)) fireCannon(p); }
+    if (D.busy && !p.finished) { p.throttle = 0; p.steer = 0; p.boosting = false; }
+    else if (G.autoPlayer && !p.finished) { if (aiControl(p, tr, G.boats, p, G.wind, dt, diff, G.krakenActive)) fireCannon(p); }
     else if (!p.finished) {
       const k = G.keys;
       p.throttle = (k.KeyW || k.ArrowUp || VK.up || PTR.down) ? 1 : (k.KeyS || k.ArrowDown || VK.down) ? -0.3 : 0.35;
@@ -2371,7 +2506,9 @@ function step() {
     } else p.fleetMul = 1;
 
     for (const b of G.boats) {
-      if (b.consort) { /* 조타는 Fleet.update가 이미 정했다 */ }
+      if (b.captured) { b.throttle = 0; b.steer = 0; b.boosting = false; }      // 나포된 배는 흘러간다
+      else if (D.busy && b === D.foe) { b.throttle = 0; b.steer = 0; b.boosting = false; } // 일기토 상대도 멈춰 선다
+      else if (b.consort) { /* 조타는 Fleet.update가 이미 정했다 */ }
       else if (!b.isPlayer) {
         if (b.finished) { b.throttle = 0.5; b.steer = 0; b.boosting = false; }
         else if (aiControl(b, tr, G.boats, p, G.wind, dt, diff, G.krakenActive)) fireCannon(b);
@@ -2393,8 +2530,9 @@ function step() {
     updateTide(dt);
     updateWildlife(dt);
     handleCollisions(dt);
-    for (const b of G.boats) { updateProgress(b); if (b.def.trackLock) applyTrackLock(b, dt); }
+    for (const b of G.boats) { if (b.captured) continue; updateProgress(b); if (b.def.trackLock) applyTrackLock(b, dt); }
     updateRanks();
+    updateDuelMarkers();
     updateOvertake(dt);
     updateProjectiles(dt);
     updateMission(dt);
@@ -2413,9 +2551,28 @@ function step() {
 
     if (st === 'finished') {
       G.finishTimer -= dt;
-      const allDone = G.boats.every((b) => b.finished || b.consort?.sunk); // 대파한 동료함은 완주를 기다리지 않는다
+      const allDone = G.boats.every((b) => b.finished || b.consort?.sunk || b.captured); // 대파한 동료함과 나포한 배는 완주를 기다리지 않는다
       if (G.finishTimer <= 0 || allDone) { showResults(); }
     }
+  } else if (st === 'capsized') {
+    // 전복: 여기서 항해가 끝난다. 배가 옆으로 눕고 물속으로 가라앉는 동안만 보여 준다.
+    // 플레이어의 물리는 돌리지 않는다 — 돌리면 Boat.update 가 배를 다시 일으켜 세운다.
+    G.capsizeT += dt;
+    const p = G.player;
+    const k = Math.min(1, G.capsizeT / 1.7);
+    const ease = k * k * (3 - 2 * k);                 // 천천히 기울다 한 번에 넘어간다
+    p.mesh.rotation.set(0, 0, 0);
+    p.mesh.rotateY(p.heading);
+    p.mesh.rotateZ(ease * Math.PI * 0.92);
+    p.mesh.position.y = waveHeight(p.pos.x, p.pos.z, G.t) * 0.6 + 0.25 - ease * 3.2;
+    if (G.capsizeT < 1.6 && Math.random() < 0.7) {
+      G.particles.spawn(p.pos.x + (Math.random() - 0.5) * 14, 1.2, p.pos.z + (Math.random() - 0.5) * 14,
+        (Math.random() - 0.5) * 5, 3 + Math.random() * 4, (Math.random() - 0.5) * 5, 1.2, 4, 0xffffff, -9);
+    }
+    for (const b of G.boats) if (b !== p) { b.throttle = 0; b.steer = 0; b.boosting = false; b.update(dt, G.wind, G.t); }
+    updateCamera(dt);
+    hud.standings(G.boats);
+    if (G.capsizeT > 3.4) showResults();
   } else if (st === 'result') {
     for (const b of G.boats) { b.throttle = 0; b.update(dt, G.wind, G.t); }
     updateCamera(dt);
@@ -2425,5 +2582,5 @@ function step() {
 refreshTitle();
 window.__camera = camera; // 디버그용 (테스트에서 화면 투영 확인)
 window.__G = G; // 디버그용
-window.__dbg = { award, finishBoat, showResults, breakCombo, step, renderer, audio, SAVE, SEL, orderFleet, startRace, showChapters, showFleetScreen, cutscene, waveHeight, HALF: TRACK_HALF_WIDTH }; // 테스트용 훅
+window.__dbg = { award, finishBoat, showResults, openDuelPrompt, acceptDuel, declineDuel, duelTap, captureBoat, capsizePlayer, updateDuelMarkers, breakCombo, step, renderer, audio, SAVE, SEL, orderFleet, startRace, showChapters, showFleetScreen, cutscene, waveHeight, HALF: TRACK_HALF_WIDTH }; // 테스트용 훅
 loop();

@@ -31,6 +31,9 @@ export class HUD {
       breathRow: $('breath-row'), breathFill: $('breath-fill'), breathLabel: $('breath-label'),
       cannonLabel: $('cannon-label'), fireBtn: $('btn-fire'), padDive: document.querySelector('.pad-dive'),
       tideRow: $('tide-row'), tideFill: $('tide-fill'), tideState: $('tide-state'),
+      // 일기토: 표찰 / 승부를 묻는 패널 / 기싸움 저울
+      duelMarks: $('duel-markers'), duelPrompt: $('duel-prompt'), dpName: $('dp-name'), dpShip: $('dp-ship'), dpOdds: $('dp-odds'),
+      duelBar: $('duel-bar'), dbMe: $('db-me'), dbFoe: $('db-foe'), dbFill: $('db-fill'),
     };
     this.orderBtns = [...document.querySelectorAll('#fleet-orders .order-btn')];
     this._fpBuilt = 0;
@@ -50,6 +53,7 @@ export class HUD {
   }
   show() { this.el.hud.classList.remove('hidden'); document.body.classList.add('racing'); }
   hide() {
+    this.clearDuelMarkers(); this.hideDuelPrompt(); this.setDuelBar(null);
     this.el.hud.classList.add('hidden'); document.body.classList.remove('racing'); this.vignette.classList.remove('on');
     this.speedLines.style.opacity = 0; this.rainOverlay.style.opacity = 0; this.lightning.style.opacity = 0;
     this.hidePort(); this.el.storm.classList.add('hidden');
@@ -306,9 +310,58 @@ export class HUD {
     this._eventTimer = setTimeout(() => e.classList.remove('show'), dur);
   }
   hitFlash() { const f = this.flash; f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
+  // ---------- 일기토 ----------
+  // 표찰을 화면에 뿌린다. list 는 [{ id, label, ship, x, y, near }].
+  // 매 프레임 innerHTML 을 새로 쓰면 누르는 순간 버튼이 사라지므로,
+  // 있는 표찰은 자리만 옮기고 없어진 것만 지운다.
+  setDuelMarkers(list) {
+    const host = this.el.duelMarks;
+    if (!this._dm) this._dm = new Map();
+    const seen = new Set();
+    for (const m of list) {
+      seen.add(m.id);
+      let el = this._dm.get(m.id);
+      if (!el) {
+        el = document.createElement('button');
+        el.type = 'button'; el.className = 'dm';
+        el.dataset.duelId = m.id;
+        host.appendChild(el); this._dm.set(m.id, el);
+      }
+      const html = `<b>⚔</b>${m.label}<small>${m.ship}</small>`;
+      if (el._html !== html) { el.innerHTML = html; el._html = html; }
+      el.style.left = m.x.toFixed(1) + 'px';
+      el.style.top = m.y.toFixed(1) + 'px';
+      el.classList.toggle('near', !!m.near);
+    }
+    for (const [id, el] of this._dm) if (!seen.has(id)) { el.remove(); this._dm.delete(id); }
+  }
+  clearDuelMarkers() { if (this._dm) { for (const [, el] of this._dm) el.remove(); this._dm.clear(); } }
+
+  // odds: { text, kind } — kind 는 good | even | bad. 지면 판이 끝나므로 전망을 먼저 보여 준다.
+  showDuelPrompt(name, ship, odds) {
+    this.el.dpName.textContent = name;
+    this.el.dpShip.textContent = ship;
+    const o = this.el.dpOdds;
+    o.textContent = odds ? odds.text : '';
+    o.className = odds ? 'odds-' + odds.kind : '';
+    this.el.duelPrompt.classList.remove('hidden');
+  }
+  hideDuelPrompt() { this.el.duelPrompt.classList.add('hidden'); }
+
+  // meter 0~1. 1 이면 내가 이긴다. pressed 는 방금 연타가 먹혔는지.
+  setDuelBar(spec) {
+    const e = this.el.duelBar;
+    if (!spec) { e.classList.add('hidden'); return; }
+    e.classList.remove('hidden');
+    this.el.dbMe.textContent = spec.me;
+    this.el.dbFoe.textContent = spec.foe;
+    this.el.dbFill.style.width = (Math.max(0, Math.min(1, spec.meter)) * 100).toFixed(1) + '%';
+    e.classList.toggle('pressed', !!spec.pressed);
+  }
+
   standings(boats) {
     const sorted = [...boats].sort((a, b) => a.rank - b.rank);
-    this.el.standings.innerHTML = sorted.map((b) => `<div class="${b.isPlayer ? 'me' : b.consort ? 'ally' : ''}"><span style="color:${b.color}">${b.consort ? '▣' : '■'}</span> ${b.rank}. ${b.name} <small>(${b.def.name})</small>${b.consort?.sunk ? ' ✖' : b.finished ? ' ✔' : ''}</div>`).join('');
+    this.el.standings.innerHTML = sorted.map((b) => `<div class="${b.isPlayer ? 'me' : b.captured ? 'taken' : b.consort ? 'ally' : ''}"><span style="color:${b.color}">${b.consort ? '▣' : '■'}</span> ${b.rank}. ${b.name} <small>(${b.def.name})</small>${b.captured ? ' ⚓' : b.consort?.sunk ? ' ✖' : b.finished ? ' ✔' : ''}</div>`).join('');
   }
 
   drawMinimap(track, boats, player, kraken, foresight = false) {

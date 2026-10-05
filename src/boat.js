@@ -118,6 +118,8 @@ export class Boat {
   }
 
   update(dt, wind, t) {
+    // 나포: 돛을 내렸으니 더 나아가지 못한다. 조타 입력을 모두 지우고 흘러가게 둔다.
+    if (this.captured) { this.throttle = 0; this.steer = 0; this.boosting = false; this.turbo = 0; this.diving = false; }
     const P = this.phys;
     this.time += dt;
     if (this.cannonCd > 0) this.cannonCd -= dt;
@@ -218,7 +220,9 @@ export class Boat {
 
     // 돛 부풀림/깃발
     const ud = this.mesh.userData;
-    const fill = THREE.MathUtils.clamp(0.35 + rel * 0.65 * wind.strength + this.speed / P.maxSpeed * 0.3, 0.2, 1.2);
+    // 나포된 배는 돛을 내린 채 파도에만 떠 있다
+    const fill = this.captured ? 0.05
+      : THREE.MathUtils.clamp(0.35 + rel * 0.65 * wind.strength + this.speed / P.maxSpeed * 0.3, 0.2, 1.2);
     for (const s of ud.sails) s.scale.z += (fill - s.scale.z) * Math.min(1, 2 * dt);
     // 노 젓기 (갤리선·갤리어스·거북선). 한 주기는 두 단계다.
     //  끌기  : 날이 물에 잠긴 채 뱃머리 → 선미로 쓸어 넘긴다
